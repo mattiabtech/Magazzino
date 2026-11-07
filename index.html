@@ -114,7 +114,7 @@
 
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v4.3</div>
+      <div class="app-version">v4.2</div>
     </div>
   </div>
 
@@ -168,7 +168,7 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v4.3</div>
+      <div class="app-version">v4.2</div>
     </div>
   </div>
 
@@ -182,12 +182,9 @@
             <h2>Cronologia Completa</h2>
           </div>
         </div>
-        
-        <button id="btnClearHistory" class="btn btn-danger btn-small" style="margin-top: 10px; margin-bottom: 5px;" onclick="eliminaTuttaLaCronologia()">🗑️ Elimina cronologia</button>
-
         <div class="list-container" id="fullHistoryContainer"></div>
       </div>
-      <div class="app-version">v4.3</div>
+      <div class="app-version">v4.2</div>
     </div>
   </div>
 
@@ -204,7 +201,7 @@
         <input type="text" id="searchInput" placeholder="Cerca codice o ID..." oninput="filtraListaRevisionati()" style="margin-top: 10px;">
         <div class="list-container" id="revisedListContainer"></div>
       </div>
-      <div class="app-version">v4.3</div>
+      <div class="app-version">v4.2</div>
     </div>
   </div>
 
@@ -225,7 +222,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v4.3</div>
+      <div class="app-version">v4.2</div>
     </div>
   </div>
 
@@ -408,16 +405,12 @@
     function caricaCronologiaCompleta() {
       let cronologia = JSON.parse(localStorage.getItem('cronologia_scansioni') || "[]");
       let container = document.getElementById('fullHistoryContainer');
-      let btnClear = document.getElementById('btnClearHistory');
       container.innerHTML = '';
 
       if (cronologia.length === 0) {
         container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 30px;">Nessuna scansione in cronologia.</p>';
-        if (btnClear) btnClear.style.display = 'none';
         return;
       }
-
-      if (btnClear) btnClear.style.display = 'block';
 
       cronologia.forEach(item => {
         let row = document.createElement('div');
@@ -426,14 +419,6 @@
         row.onclick = () => apriArticoloDaCronologia(item.id);
         container.appendChild(row);
       });
-    }
-
-    function eliminaTuttaLaCronologia() {
-      if (confirm("Sei sicuro di voler cancellare l'intera cronologia delle scansioni? (I dati memorizzati negli articoli rimarranno intatti)")) {
-        localStorage.removeItem('cronologia_scansioni');
-        caricaCronologiaCompleta();
-        aggiornaCronologiaHome();
-      }
     }
 
     function caricaListaRevisionati() {
@@ -519,4 +504,212 @@
       const d = new Date();
       const day = String(d.getDate()).padStart(2, '0');
       const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+
+    function validaFormatoData(dataStr) {
+      const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+      if (!regex.test(dataStr)) return false;
+      const parti = dataStr.split('/');
+      const giorno = parseInt(parti[0], 10);
+      const mese = parseInt(parti[1], 10);
+      const anno = parseInt(parti[2], 10);
+      
+      const d = new Date(anno, mese - 1, giorno);
+      return d && d.getFullYear() === anno && d.getMonth() === mese - 1 && d.getDate() === giorno;
+    }
+
+    function salvaDB(id, tipo, rev = null, note = null, dataRev = null) {
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[id] || {};
+      
+      let nuovoRev = rev !== null ? rev : (item.revised || false);
+      let nuovaData = item.revisedDate || "";
+
+      if (nuovoRev && !item.revised && !dataRev) {
+        // Se viene segnato come revisionato ora, metti la data odierna
+        nuovaData = getDataOdiernaFormattata();
+      } else if (dataRev !== null) {
+        // Modifica manuale della data
+        nuovaData = dataRev;
+      } else if (!nuovoRev && !item.revised) {
+        // Se è un articolo nuovo non revisionato, la data resta vuota
+        nuovaData = "";
+      } else if (!nuovoRev) {
+        // Se viene tolto lo stato di revisione, manteniamo la vecchia data in memoria
+        nuovaData = item.revisedDate || "";
+      }
+
+      db[id] = {
+        revised: nuovoRev,
+        typeCode: tipo || "",
+        notes: note !== null ? note : (item.notes || ""),
+        revisedDate: nuovaData,
+        rawText: tipo || ""
+      };
+      db._settings = { cameraId: selectedCameraId };
+      localStorage.setItem('miei_revisionati', JSON.stringify(db));
+    }
+
+    function riavviaErrore(msg) {
+      document.getElementById('statusAlert').innerText = msg;
+      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
+      setTimeout(() => { isProcessing = false; }, 1500);
+    }
+
+    function procediManualcode() {
+      let val = document.getElementById('manualInput').value.trim();
+      if (val.length !== 5) { alert("Inserisci esattamente 5 cifre!"); return; }
+      registraCronologiaScansione(val);
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let codice = (db[val] && db[val].typeCode) ? db[val].typeCode : "";
+      salvaDB(val, codice);
+      fermaScannerEApri(val, codice, "digitato a mano");
+    }
+
+    function mostraRisultato(id, codice, metodo) {
+      currentId = id; currentTypeCode = codice;
+      document.getElementById('valId').innerText = id;
+      document.getElementById('statusMethod').innerText = `Metodo: ${metodo}`;
+      
+      const disp = document.getElementById('codeDisplayArea'), editArea = document.getElementById('articleEditArea');
+      if (codice && codice.length === 10) {
+        disp.innerHTML = `<div class="big-value">${codice}</div>`;
+        disp.style.display = 'block'; editArea.style.display = 'none';
+      } else {
+        disp.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante</div>`;
+        editArea.style.display = 'block';
+        document.getElementById('inputEditCode').value = '';
+        document.getElementById('inputEditDate').value = ""; // Vuoto di default per nuovi articoli
+      }
+
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+      document.getElementById('inputNotes').value = item.notes || "";
+      aggiornaRev(item.revised || false, item.revisedDate || "");
+
+      history.pushState({ view: 'detail-view' }, "", "#detail");
+      attivaVistaSenzaStoria('detail-view');
+    }
+
+    function abilitaModificaArticolo() {
+      document.getElementById('dropdownDetailMenu').classList.remove('show');
+      document.getElementById('codeDisplayArea').style.display = 'none';
+      document.getElementById('articleEditArea').style.display = 'block';
+      
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+      document.getElementById('inputEditCode').value = currentTypeCode;
+      // Se l'articolo ha già una data usa quella, altrimenti se è vuota lascia vuoto o metti la data odierna solo se richiesto
+      document.getElementById('inputEditDate').value = item.revisedDate || (item.revised ? getDataOdiernaFormattata() : "");
+    }
+
+    function annullaModificaArticolo() {
+      const disp = document.getElementById('codeDisplayArea'), editArea = document.getElementById('articleEditArea');
+      editArea.style.display = 'none';
+      if (currentTypeCode && currentTypeCode.length === 10) {
+        disp.innerHTML = `<div class="big-value">${currentTypeCode}</div>`;
+        disp.style.display = 'block';
+      } else {
+        disp.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante</div>`;
+        disp.style.display = 'block';
+      }
+    }
+
+    function confermaModificaArticolo() {
+      let nuovoCodice = document.getElementById('inputEditCode').value.trim();
+      let nuovaData = document.getElementById('inputEditDate').value.trim();
+
+      if (nuovoCodice.length !== 10) { alert("Il codice deve essere esattamente di 10 cifre!"); return; }
+      if (nuovaData && !validaFormatoData(nuovaData)) { alert("Data non valida! Il formato corretto è DD/MM/YYYY (es. 07/11/2026)."); return; }
+
+      currentTypeCode = nuovoCodice;
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+
+      salvaDB(currentId, nuovoCodice, item.revised, item.notes, nuovaData);
+
+      document.getElementById('codeDisplayArea').innerHTML = `<div class="big-value">${nuovoCodice}</div>`;
+      document.getElementById('codeDisplayArea').style.display = 'block';
+      document.getElementById('articleEditArea').style.display = 'none';
+      
+      aggiornaRev(item.revised, nuovaData);
+      alert("Articolo modificato con successo!");
+    }
+
+    function salvaNote() {
+      if (currentId) {
+        let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+        let item = db[currentId] || {};
+        salvaDB(currentId, currentTypeCode, item.revised, document.getElementById('inputNotes').value, item.revisedDate);
+      }
+    }
+
+    function impostaRevisionato(rev) {
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+      
+      salvaDB(currentId, currentTypeCode, rev, document.getElementById('inputNotes').value, item.revisedDate);
+      
+      let updatedDb = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let updatedItem = updatedDb[currentId] || {};
+
+      aggiornaRev(rev, updatedItem.revisedDate || "");
+      alert(rev ? "Articolo revisionato." : "Revisione rimossa.");
+    }
+
+    function aggiornaRev(rev, dataRev) {
+      let htmlStatus = rev 
+        ? `<div class="badge-me">✅ Revisionato da te<br><span style="font-size:12px; font-weight:normal;">Data: ${dataRev || 'N.D.'}</span></div>` 
+        : `<div class="badge-other">⚠️ Non ancora revisionato</div>`;
+
+      document.getElementById('revisionStatus').innerHTML = htmlStatus;
+      document.getElementById('btnSegna').style.display = rev ? 'none' : 'inline-block';
+      document.getElementById('btnTogli').style.display = rev ? 'inline-block' : 'none';
+    }
+
+    function tornaAllaHome() {
+      isProcessing = false;
+      document.getElementById('statusAlert').innerText = "";
+      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
+      document.getElementById('manualInput').value = '';
+      
+      history.pushState({ view: 'home-view' }, "", "#home");
+      attivaVistaSenzaStoria('home-view');
+    }
+
+    function esportaDati() {
+      document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+      const blob = new Blob([localStorage.getItem('miei_revisionati') || "{}"], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup_magazzino_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    function importaDati(e) {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = (evt) => {
+        try {
+          localStorage.setItem('miei_revisionati', JSON.stringify(JSON.parse(evt.target.result)));
+          alert("Ripristino completato!");
+          location.reload();
+        } catch { alert("File JSON non valido."); }
+      };
+      r.readAsText(f);
+    }
+
+    function eliminaDatabase() {
+      document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+      if (confirm("Eliminare tutto il database locale e le impostazioni?")) {
+        localStorage.removeItem('miei_revisionati');
+        localStorage.removeItem('cronologia_scansioni');
+        location.reload();
+      }
+    }
+  </script>
+</body>
+</html>
