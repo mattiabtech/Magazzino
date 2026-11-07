@@ -3,29 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Magazzino - Scanner e Revisione</title>
-  <!-- Libreria Scanner QR -->
+  <title>Magazzino - Test OCR Automatico</title>
+  <!-- Librerie Scanner QR e OCR (Tesseract) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f4f9; color: #333; }
     .container { max-width: 500px; margin: auto; padding: 20px; text-align: center; box-sizing: border-box; }
     
-    /* Viste (Home e Dettaglio) */
     .view { display: none; }
     .view.active { display: block; }
 
     #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; }
     
-    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 20px; }
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 20px; text-align: left; }
+    .card-center { text-align: center; }
     
-    input[type="text"] { width: 80%; padding: 12px; font-size: 18px; border: 1px solid #ccc; border-radius: 6px; text-align: center; margin-bottom: 10px; }
+    input[type="text"] { width: 80%; padding: 12px; font-size: 18px; border: 1px solid #ccc; border-radius: 6px; text-align: center; margin-bottom: 10px; box-sizing: border-box; }
     
-    .btn { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; text-decoration: none; display: inline-block; margin-top: 10px; }
+    .btn { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; text-decoration: none; display: inline-block; margin-top: 10px; text-align: center; box-sizing: border-box; }
     .btn-green { background: #28a745; }
     .btn-gray { background: #6c757d; }
+    .btn-info { background: #17a2b8; }
 
-    .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; }
-    .badge-other { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; }
+    .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
+    .badge-other { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
+    
+    /* Box per i risultati di test */
+    .test-box { background: #e9ecef; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px; text-align: left; margin: 15px 0; word-break: break-all; }
+    
+    /* Canvas nascosto per catturare il fotogramma della telecamera */
+    #snapshotCanvas { display: none; }
   </style>
 </head>
 <body>
@@ -33,27 +41,51 @@
   <!-- VISTA 1: HOME (Scanner QR + Form Manuale) -->
   <div id="home-view" class="view active">
     <div class="container">
-      <h2>Magazzino - Scanner</h2>
+      <h2>Magazzino - Test OCR</h2>
       
-      <!-- Form manuale a 5 cifre -->
-      <div class="card">
+      <!-- Form manuale -->
+      <div class="card card-center">
         <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
-        <input type="text" id="manualInput" maxlength="5" placeholder="Es. 52855">
+        <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161">
         <button class="btn" onclick="procediManualcode()">Vai al Dettaglio</button>
       </div>
 
-      <p style="margin: 20px 0 5px 0; font-size: 14px; color: #666;">Oppure inquadra il QR Code:</p>
-      <div id="reader"></div>
+      <!-- Sezione Scanner -->
+      <div style="margin-top: 20px;">
+        <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
+        <div id="reader"></div>
+      </div>
+
+      <!-- Canvas nascosto per la cattura dell'immagine -->
+      <canvas id="snapshotCanvas"></canvas>
+
+      <!-- Gestione Backup -->
+      <div class="card">
+        <p style="margin-top:0; font-size: 14px; color: #666; font-weight: bold; text-align: center;">Gestione Dati (Backup)</p>
+        <button class="btn btn-gray" style="margin-top: 5px;" onclick="esportaDati()">📥 Scarica Backup (JSON)</button>
+        <label class="btn btn-info" style="margin-top: 10px; display: block; cursor: pointer;">
+          📤 Ripristina Backup
+          <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importaDati(event)">
+        </label>
+      </div>
     </div>
   </div>
 
-  <!-- VISTA 2: PAGINA DETTAGLIO -->
+  <!-- VISTA 2: PAGINA DETTAGLIO / TEST -->
   <div id="detail-view" class="view">
     <div class="container">
-      <div class="card">
-        <h2>Scheda Articolo</h2>
-        <p style="font-size: 18px; margin: 10px 0;">Codice ID: <strong id="detId">-----</strong></p>
+      <div class="card card-center">
+        <h2>Scheda Articolo & Test</h2>
+        <p style="font-size: 18px; margin: 10px 0;">Codice ID Finale: <strong id="detId">-----</strong></p>
         
+        <!-- Area di stampa dei dati di testing richiesti -->
+        <div class="test-box" id="testOutput">
+          <b>Dati di Test OCR/QR:</b><br>
+          - IDdet dal QR: <span id="testQrId">-</span><br>
+          - Stringa letta sotto: <span id="testRawString">-</span><br>
+          - IDdet dalla stringa: <span id="testStringId">-</span>
+        </div>
+
         <div id="revisionStatus"></div>
 
         <button id="revButton" class="btn btn-green" onclick="segnaRevisionato()">✔️ Segna come revisionato da me</button>
@@ -66,7 +98,6 @@
     let html5QrCode;
     let currentId = "";
 
-    // Avvia lo scanner all'avvio
     window.onload = function() {
       startScanner();
     };
@@ -82,82 +113,160 @@
       });
     }
 
-    // Gestisce il successo della scansione QR
+    // Quando rileva il QR code
     function onScanSuccess(decodedText) {
-      // Ferma la fotocamera ed estrae iddet dal link es. https://.../?iddet=52855&...
-      html5QrCode.stop().then(() => {
-        let codiceEstratto = estraiIddetDaUrl(decodedText);
-        apriDettaglio(codiceEstratto);
-      }).catch(err => console.error(err));
+      // 1. Estrae l'IDdet dal QR
+      const qrId = estraiIddetDaUrl(decodedText);
+      
+      document.getElementById('scannerStatus').innerText = "QR rilevato! Analisi testo etichetta in corso...";
+
+      // 2. Cattura l'immagine corrente dal feed video dello scanner
+      catturaFotogrammaEseguiOCR(qrId);
     }
 
-    // Funzione per estrarre il parametro iddet dal link o usare il testo diretto
+    // Cattura il fotogramma video e lancia Tesseract OCR
+    function catturaFotogrammaEseguiOCR(qrId) {
+      const videoElement = document.querySelector('#reader video');
+      
+      if (!videoElement) {
+        // Se per qualche motivo il video non è accessibile, procediamo comunque con il solo QR
+        fermaScannerEApriDettaglio(qrId, qrId, "Impossibile catturare fotogramma video");
+        return;
+      }
+
+      const canvas = document.getElementById('snapshotCanvas');
+      canvas.width = videoElement.videoWidth || 640;
+      canvas.height = videoElement.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+      const dataURL = canvas.toDataURL('image/png');
+
+      // Ferma lo scanner temporaneamente
+      html5QrCode.stop().then(() => {
+        // Esegue l'OCR sull'immagine catturata
+        Tesseract.recognize(
+          dataURL,
+          'eng',
+          { logger: m => console.log(m) }
+        ).then(({ data: { text } }) => {
+          elaboraRisultatiTest(qrId, text);
+        }).catch(err => {
+          console.error("Errore OCR:", err);
+          elaboraRisultatiTest(qrId, "Errore OCR: " + err.message);
+        });
+      }).catch(err => {
+        console.error(err);
+        apriDettaglio(qrId, qrId, "Errore arresto scanner");
+      });
+    }
+
+    // Elabora i testi trovati ed estrae le 5 cifre dalla stringa sotto
+    function elaboraRisultatiTest(qrId, rawOcrText) {
+      // Pulisce il testo OCR da spazi o caratteri strani per trovare le prime cifre numeriche
+      let cleanedText = rawOcrText.replace(/\D/g, ''); // Prende solo i numeri
+      let stringId = cleanedText.length >= 5 ? cleanedText.substring(0, 5) : cleanedText;
+      
+      // Passa alla pagina di dettaglio stampando i dati di test
+      apriDettaglio(qrId, stringId, rawOcrText.trim());
+    }
+
+    // Estrae il parametro iddet dal link o usa il testo
     function estraiIddetDaUrl(testo) {
       try {
         const url = new URL(testo);
         const iddet = url.searchParams.get("iddet");
-        return iddet ? iddet : testo; // Se c'è iddet lo usa, altrimenti prende tutto il testo
+        return iddet ? iddet : testo;
       } catch (e) {
-        return testo; // Se non è un URL valido, restituisce il testo così com'è
+        return testo;
       }
     }
 
-    // Gestione invio manuale dal form
+    // Gestione inserimento manuale
     function procediManualcode() {
       const val = document.getElementById('manualInput').value.trim();
       if(!val) {
         alert("Inserisci un codice valido!");
         return;
       }
-      // Ferma lo scanner se attivo prima di cambiare vista
       if(html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => apriDettaglio(val)).catch(() => apriDettaglio(val));
+        html5QrCode.stop().then(() => apriDettaglio(val, val, "Inserimento manuale")).catch(() => apriDettaglio(val, val, "Inserimento manuale"));
       } else {
-        apriDettaglio(val);
+        apriDettaglio(val, val, "Inserimento manuale");
       }
     }
 
-    // Passa alla pagina di dettaglio e verifica chi ha fatto la revisione
-    apriDettaglio = function(id) {
-      currentId = id;
-      document.getElementById('detId').innerText = id;
-      
-      // Controlliamo in locale (localStorage) se è stato revisionato da "me"
-      // Salviamo un oggetto JSON dove la chiave è l'ID articolo
+    // Mostra la pagina di dettaglio con i dati di testing
+    function apriDettaglio(qrId, stringId, rawText) {
+      currentId = qrId; // Usiamo l'ID principale per il magazzino
+      document.getElementById('detId').innerText = qrId;
+
+      // Stampa i dati di test richiesti
+      document.getElementById('testQrId').innerText = qrId;
+      document.getElementById('testRawString').innerText = rawText;
+      document.getElementById('testStringId').innerText = stringId;
+
       const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       const statusDiv = document.getElementById('revisionStatus');
       const revButton = document.getElementById('revButton');
 
-      if (revisioni[id]) {
+      if (revisioni[currentId]) {
         statusDiv.innerHTML = `<div class="badge-me">✅ Questo articolo è stato revisionato da TE.</div>`;
-        revButton.style.display = 'none'; // Già fatto da te
+        revButton.style.display = 'none';
       } else {
-        // Simuliamo o controlliamo se è stato fatto da qualcun altro (puoi personalizzare la logica)
-        // Per ora mettiamo lo stato neutro o simulato
-        statusDiv.innerHTML = `<div class="badge-other">⚠️ Revisionato da qualcun altro (o non ancora revisionato da te).</div>`;
+        statusDiv.innerHTML = `<div class="badge-other">⚠️ Non ancora revisionato da te.</div>`;
         revButton.style.display = 'inline-block';
       }
 
-      // Cambia vista
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('detail-view').classList.add('active');
     }
 
-    // Azione per segnare l'articolo revisionato da me
     function segnaRevisionato() {
       const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       revisioni[currentId] = true;
       localStorage.setItem('miei_revisionati', JSON.stringify(revisioni));
       
       alert("Salvato! Articolo segnato come revisionato da te.");
-      apriDettaglio(currentId); // Aggiorna la schermata
+      // Ricarica la vista di dettaglio mantenendo i dati di test
+      apriDettaglio(currentId, document.getElementById('testStringId').innerText, document.getElementById('testRawString').innerText);
     }
 
-    // Torna alla home e riattiva la fotocamera
+    function esportaDati() {
+      const dati = localStorage.getItem('miei_revisionati') || "{}";
+      const blob = new Blob([dati], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_revisioni_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importaDati(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const contenuto = JSON.parse(e.target.result);
+          localStorage.setItem('miei_revisionati', JSON.stringify(contenuto));
+          alert("Backup ripristinato con successo!");
+          event.target.value = '';
+        } catch (err) {
+          alert("Errore nella lettura del file.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
     function tornaAllaHome() {
       document.getElementById('detail-view').classList.remove('active');
       document.getElementById('home-view').classList.add('active');
       document.getElementById('manualInput').value = '';
+      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
       startScanner();
     }
   </script>
