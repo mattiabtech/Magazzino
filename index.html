@@ -88,7 +88,7 @@
         </div>
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v3.4</div>
+      <div class="app-version">v3.5</div>
     </div>
   </div>
 
@@ -130,7 +130,7 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v3.4</div>
+      <div class="app-version">v3.5</div>
     </div>
   </div>
 
@@ -151,7 +151,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v3.4</div>
+      <div class="app-version">v3.5</div>
     </div>
   </div>
 
@@ -199,7 +199,7 @@
         }
         avviaScanner();
       }).catch(() => {
-        document.getElementById('cameraSelect').innerHTML = '<option value="">Errore rilevamento</option>';
+        document.getElementById('cameraSelect').innerHTML = '<option value="environment">Posteriore predefinita</option>';
         avviaScanner();
       });
     }
@@ -230,12 +230,15 @@
       document.getElementById('statusAlert').innerText = "";
       if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
 
-      const config = { fps: 20, qrbox: { width: 250, height: 250 }, videoConstraints: { focusMode: "continuous" } };
-      const target = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : { facingMode: "environment" };
+      const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+      // Passaggio pulito: se c'è un ID salvato passiamo l'ID esatto, altrimenti fallback sulla posteriore environment
+      const target = selectedCameraId ? selectedCameraId : { facingMode: "environment" };
 
-      html5QrCode.start(target, config, onScanSuccess).catch(() => {
+      html5QrCode.start(target, config, onScanSuccess).catch((err) => {
+        console.error("Errore avvio camera:", err);
+        // Fallback estremo se fallisce l'ID specifico
         html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess).catch(() => {
-          document.getElementById('statusAlert').innerText = "Errore accesso fotocamera.";
+          document.getElementById('statusAlert').innerText = "Impossibile accedere alla fotocamera.";
         });
       });
     }
@@ -249,7 +252,7 @@
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       if (db[qrId] && db[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura...";
-         fermaScannerEApri(qrId, db[qrId].typeCode, "memorizzato");
+        fermaScannerEApri(qrId, db[qrId].typeCode, "memorizzato");
         return;
       }
       document.getElementById('scannerStatus').innerText = "Analisi OCR in corso...";
