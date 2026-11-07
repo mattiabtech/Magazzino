@@ -10,23 +10,38 @@
     body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f4f9; color: #333; }
     .container { max-width: 500px; margin: auto; padding: 20px; text-align: center; box-sizing: border-box; min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
     
+    .header-bar { display: flex; justify-content: space-between; align-items: center; position: relative; margin-bottom: 10px; }
+    .header-bar h2 { margin: 0; font-size: 20px; }
+
+    /* Menu 3 Puntini */
+    .menu-btn { background: none; border: none; font-size: 24px; cursor: pointer; padding: 5px 10px; border-radius: 50%; color: #333; }
+    .menu-btn:hover { background: #e0e0e0; }
+    
+    .dropdown-menu { display: none; position: absolute; right: 0; top: 40px; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; width: 220px; z-index: 100; text-align: left; overflow: hidden; }
+    .dropdown-menu.show { display: block; }
+    .dropdown-item { padding: 12px 16px; display: block; color: #333; text-decoration: none; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; background: white; border: none; width: 100%; text-align: left; }
+    .dropdown-item:last-child { border-bottom: none; }
+    .dropdown-item:hover { background: #f8f9fa; }
+    .dropdown-item.danger-text { color: #dc3545; font-weight: bold; }
+
     .view { display: none; flex-direction: column; justify-content: space-between; flex-grow: 1; }
     .view.active { display: flex; }
 
     .content-area { flex-grow: 1; }
 
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #000; min-height: 250px; }
     
-    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 20px; text-align: left; }
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 15px; text-align: left; }
     .card-center { text-align: center; }
     
-    input[type="text"] { width: 80%; padding: 12px; font-size: 18px; border: 1px solid #ccc; border-radius: 6px; text-align: center; margin-bottom: 10px; box-sizing: border-box; }
+    input[type="text"], select { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; background: white; }
     
     .btn { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; text-decoration: none; display: inline-block; margin-top: 10px; text-align: center; box-sizing: border-box; }
     .btn-green { background: #28a745; }
     .btn-danger { background: #dc3545; }
     .btn-gray { background: #6c757d; }
     .btn-info { background: #17a2b8; }
+    .btn-warning { background: #ffc107; color: #333; }
 
     .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     .badge-other { background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
@@ -62,34 +77,39 @@
   <div id="home-view" class="view active">
     <div class="container">
       <div class="content-area">
-        <h2>Magazzino - Validazione Etichetta</h2>
+        <div class="header-bar">
+          <h2>Magazzino - Validazione</h2>
+          <button class="menu-btn" onclick="toggleMenu(event)">⋮</button>
+          
+          <!-- Dropdown Menu -->
+          <div id="dropdownMenu" class="dropdown-menu">
+            <div class="dropdown-item" onclick="apriSettings()">⚙️ Impostazioni</div>
+            <div class="dropdown-item" onclick="esportaDati()">📥 Scarica Backup (JSON)</div>
+            <label class="dropdown-item">
+              📤 Ripristina Backup
+              <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importaDati(event)">
+            </label>
+            <div class="dropdown-item danger-text" onclick="eliminaDatabase()">🗑️ Elimina database</div>
+          </div>
+        </div>
         
         <div class="card card-center">
-          <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
-          <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161">
+          <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre (Manuale):</p>
+          <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161" style="text-align: center;">
           <button class="btn" onclick="procediManualcode()">Vai al Dettaglio</button>
         </div>
 
-        <div style="margin-top: 20px;">
+        <div style="margin-top: 15px;">
           <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
           <div id="statusAlert" class="status-msg"></div>
           <div id="reader"></div>
+          <button class="btn btn-warning" style="margin-top: 8px;" onclick="riavviaScannerManuale()">🔄 Riavvia Fotocamera</button>
         </div>
 
         <canvas id="snapshotCanvas"></canvas>
-
-        <div class="card">
-          <p style="margin-top:0; font-size: 14px; color: #666; font-weight: bold; text-align: center;">Gestione Dati (Backup)</p>
-          <button class="btn btn-gray" style="margin-top: 5px;" onclick="esportaDati()">📥 Scarica Backup (JSON)</button>
-          <label class="btn btn-info" style="margin-top: 10px; display: block; cursor: pointer;">
-            📤 Ripristina Backup
-            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importaDati(event)">
-          </label>
-          <button class="btn btn-danger" style="margin-top: 10px;" onclick="eliminaDatabase()">🗑️ Elimina database locale</button>
-        </div>
       </div>
 
-      <div class="app-version">v2.1</div>
+      <div class="app-version">v2.4</div>
     </div>
   </div>
 
@@ -112,7 +132,28 @@
         </div>
       </div>
 
-      <div class="app-version">v2.1</div>
+      <div class="app-version">v2.4</div>
+    </div>
+  </div>
+
+  <!-- VISTA 3: IMPOSTAZIONI -->
+  <div id="settings-view" class="view">
+    <div class="container">
+      <div class="content-area">
+        <h2>⚙️ Impostazioni</h2>
+
+        <div class="card">
+          <label style="font-weight: bold; display: block; margin-bottom: 8px;">Fotocamera Predefinita:</label>
+          <select id="cameraSelect" onchange="salvaSelezioneCamera()">
+            <option value="">Caricamento fotocamere...</option>
+          </select>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">Seleziona la fotocamera preferita da utilizzare durante la scansione dei codici QR.</p>
+        </div>
+
+        <button class="btn btn-gray" onclick="tornaAllaHome()">⬅️ Salva e Torna alla Home</button>
+      </div>
+
+      <div class="app-version">v2.4</div>
     </div>
   </div>
 
@@ -121,36 +162,151 @@
     let currentId = "";
     let currentTypeCode = "";
     let isProcessing = false;
+    let selectedCameraId = "";
 
     window.onload = function() {
       history.replaceState({ view: 'home' }, "", "#home");
       
       window.onpopstate = function(event) {
         const detailView = document.getElementById('detail-view');
-        if (detailView.classList.contains('active')) {
+        const settingsView = document.getElementById('settings-view');
+        if (detailView.classList.contains('active') || settingsView.classList.contains('active')) {
           tornaAllaHome(true);
         }
       };
 
-      startScanner();
+      // Chiude il menu 3 puntini se si clicca fuori
+      document.addEventListener('click', function(e) {
+        const menu = document.getElementById('dropdownMenu');
+        const btn = document.querySelector('.menu-btn');
+        if (!menu.contains(e.target) && !btn.contains(e.target)) {
+          menu.classList.remove('show');
+        }
+      });
+
+      caricaImpostazioniSalvate();
+      inizializzaFotocamere();
     };
+
+    function toggleMenu(e) {
+      e.stopPropagation();
+      document.getElementById('dropdownMenu').classList.toggle('show');
+    }
+
+    function caricaImpostazioniSalvate() {
+      let store = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      if (store._settings && store._settings.cameraId) {
+        selectedCameraId = store._settings.cameraId;
+      }
+    }
+
+    function inizializzaFotocamere() {
+      Html5Qrcode.getCameras().then(devices => {
+        const cameraSelect = document.getElementById('cameraSelect');
+        cameraSelect.innerHTML = '';
+        
+        if (devices && devices.length) {
+          devices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.id;
+            option.text = device.label || `Fotocamera ${index + 1}`;
+            if (device.id === selectedCameraId) {
+              option.selected = true;
+            }
+            cameraSelect.appendChild(option);
+          });
+          
+          if (!selectedCameraId) {
+            selectedCameraId = devices[0].id;
+          }
+        } else {
+          cameraSelect.innerHTML = '<option value="">Nessuna fotocamera trovata</option>';
+        }
+        
+        startScanner();
+      }).catch(err => {
+        console.error("Errore rilevamento fotocamere:", err);
+        startScanner();
+      });
+    }
+
+    function salvaSelezioneCamera() {
+      selectedCameraId = document.getElementById('cameraSelect').value;
+      salvaInDatabaseSettings();
+    }
+
+    function salvaInDatabaseSettings() {
+      let database = {};
+      try {
+        database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      } catch(e) {
+        database = {};
+      }
+
+      database._settings = {
+        cameraId: selectedCameraId
+      };
+
+      localStorage.setItem('miei_revisionati', JSON.stringify(database));
+    }
+
+    function apriSettings() {
+      document.getElementById('dropdownMenu').classList.remove('show');
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
+      }
+      
+      document.getElementById('home-view').classList.remove('active');
+      document.getElementById('detail-view').classList.remove('active');
+      document.getElementById('settings-view').classList.add('active');
+      
+      if (location.hash !== "#settings") {
+        history.pushState({ view: 'settings' }, "", "#settings");
+      }
+    }
 
     function startScanner() {
       isProcessing = false;
       document.getElementById('statusAlert').innerText = "";
-      
+
       if (!html5QrCode) {
         html5QrCode = new Html5Qrcode("reader");
       }
-      
+
+      const config = {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+      };
+
+      // Se l'utente ha selezionato una fotocamera specifica nelle impostazioni, usa quella
+      const cameraConfig = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : { facingMode: "environment" };
+
       html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
+        cameraConfig,
+        config,
         onScanSuccess
       ).catch((err) => {
-        console.error("Errore avvio fotocamera", err);
-        document.getElementById('statusAlert').innerText = "Errore fotocamera. Controlla i permessi.";
+        console.warn("Avvio fotocamera specifica fallito, provo fallback posteriore generico...", err);
+        html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccess
+        ).catch((err2) => {
+          console.error("Errore critico fotocamera:", err2);
+          document.getElementById('statusAlert').innerText = "Impossibile accedere alla fotocamera. Controlla i permessi o le Impostazioni.";
+        });
       });
+    }
+
+    function riavviaScannerManuale() {
+      if (html5QrCode) {
+        html5QrCode.stop().catch(() => {}).finally(() => {
+          startScanner();
+        });
+      } else {
+        startScanner();
+      }
     }
 
     function onScanSuccess(decodedText) {
@@ -159,6 +315,11 @@
 
       const qrId = estraiIddetDaUrl(decodedText);
       
+      if (!qrId || qrId.length < 3) {
+        isProcessing = false;
+        return;
+      }
+
       let database = {};
       try {
         database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
@@ -190,7 +351,7 @@
       const videoElement = document.querySelector('#reader video');
       
       if (!videoElement) {
-        riavviaPerErrore("Impossibile accedere al feed fotocamera.");
+        riavviaPerErrore("Feed fotocamera non pronto.");
         return;
       }
 
@@ -291,6 +452,11 @@
         rawText: codiceTipo
       };
       
+      // Mantiene intatte le impostazioni
+      if (!database._settings) {
+        database._settings = { cameraId: selectedCameraId };
+      }
+
       localStorage.setItem('miei_revisionati', JSON.stringify(database));
     }
 
@@ -364,6 +530,7 @@ codice ${codiceTipo}`;
       aggiornaInterfacciaRevisione(isRevised);
 
       document.getElementById('home-view').classList.remove('active');
+      document.getElementById('settings-view').classList.remove('active');
       document.getElementById('detail-view').classList.add('active');
       
       if (location.hash !== "#detail") {
@@ -393,6 +560,7 @@ codice ${codiceTipo}`;
       document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
 
       document.getElementById('detail-view').classList.remove('active');
+      document.getElementById('settings-view').classList.remove('active');
       document.getElementById('home-view').classList.add('active');
       document.getElementById('manualInput').value = '';
       
@@ -404,12 +572,13 @@ codice ${codiceTipo}`;
     }
 
     function esportaDati() {
+      document.getElementById('dropdownMenu').classList.remove('show');
       const dati = localStorage.getItem('miei_revisionati') || "{}";
       const blob = new Blob([dati], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `backup_revisioni_${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `backup_magazzino_${new Date().toISOString().slice(0,10)}.json`;
       
       document.body.appendChild(a);
       a.click();
@@ -420,6 +589,7 @@ codice ${codiceTipo}`;
     }
 
     function importaDati(event) {
+      document.getElementById('dropdownMenu').classList.remove('show');
       const file = event.target.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -427,8 +597,10 @@ codice ${codiceTipo}`;
         try {
           const contenuto = JSON.parse(e.target.result);
           localStorage.setItem('miei_revisionati', JSON.stringify(contenuto));
-          alert("Backup ripristinato con successo!");
+          caricaImpostazioniSalvate();
+          alert("Backup ed impostazioni ripristinati con successo!");
           event.target.value = '';
+          tornaAllaHome();
         } catch (err) {
           alert("Errore nella lettura del file JSON.");
         }
@@ -437,9 +609,11 @@ codice ${codiceTipo}`;
     }
 
     function eliminaDatabase() {
-      if (confirm("Sei sicuro di voler eliminare tutto il database locale? Questa operazione cancellerà tutti i dati memorizzati.")) {
+      document.getElementById('dropdownMenu').classList.remove('show');
+      if (confirm("Sei sicuro di voler eliminare tutto il database locale e le impostazioni? Questa operazione è irreversibile.")) {
         localStorage.removeItem('miei_revisionati');
-        alert("Database locale eliminato con successo.");
+        alert("Database locale ed impostazioni eliminati.");
+        location.reload();
       }
     }
   </script>
