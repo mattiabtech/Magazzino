@@ -8,10 +8,12 @@
   <script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f4f9; color: #333; }
-    .container { max-width: 500px; margin: auto; padding: 20px; text-align: center; box-sizing: border-box; }
+    .container { max-width: 500px; margin: auto; padding: 20px; text-align: center; box-sizing: border-box; min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
     
-    .view { display: none; }
-    .view.active { display: block; }
+    .view { display: none; flex-direction: column; justify-content: space-between; flex-grow: 1; }
+    .view.active { display: flex; }
+
+    .content-area { flex-grow: 1; }
 
     #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; }
     
@@ -31,6 +33,15 @@
     .test-box { background: #e9ecef; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px; text-align: left; margin: 15px 0; word-break: break-all; }
     .status-msg { margin: 10px 0; font-size: 14px; color: #d9534f; font-weight: bold; }
     
+    /* Stile per il numero di versione in basso a sinistra */
+    .app-version {
+      font-size: 12px;
+      color: #999;
+      text-align: left;
+      padding: 10px 0;
+      margin-top: auto;
+    }
+
     #snapshotCanvas { display: none; }
   </style>
 </head>
@@ -39,53 +50,63 @@
   <!-- VISTA 1: HOME -->
   <div id="home-view" class="view active">
     <div class="container">
-      <h2>Magazzino - Validazione Etichetta</h2>
-      
-      <div class="card card-center">
-        <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
-        <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161">
-        <button class="btn" onclick="procediManualcode()">Vai al Dettaglio</button>
+      <div class="content-area">
+        <h2>Magazzino - Validazione Etichetta</h2>
+        
+        <div class="card card-center">
+          <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
+          <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161">
+          <button class="btn" onclick="procediManualcode()">Vai al Dettaglio</button>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
+          <div id="statusAlert" class="status-msg"></div>
+          <div id="reader"></div>
+        </div>
+
+        <canvas id="snapshotCanvas"></canvas>
+
+        <div class="card">
+          <p style="margin-top:0; font-size: 14px; color: #666; font-weight: bold; text-align: center;">Gestione Dati (Backup)</p>
+          <button class="btn btn-gray" style="margin-top: 5px;" onclick="esportaDati()">📥 Scarica Backup (JSON)</button>
+          <label class="btn btn-info" style="margin-top: 10px; display: block; cursor: pointer;">
+            📤 Ripristina Backup
+            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importaDati(event)">
+          </label>
+        </div>
       </div>
 
-      <div style="margin-top: 20px;">
-        <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
-        <div id="statusAlert" class="status-msg"></div>
-        <div id="reader"></div>
-      </div>
-
-      <canvas id="snapshotCanvas"></canvas>
-
-      <div class="card">
-        <p style="margin-top:0; font-size: 14px; color: #666; font-weight: bold; text-align: center;">Gestione Dati (Backup)</p>
-        <button class="btn btn-gray" style="margin-top: 5px;" onclick="esportaDati()">📥 Scarica Backup (JSON)</button>
-        <label class="btn btn-info" style="margin-top: 10px; display: block; cursor: pointer;">
-          📤 Ripristina Backup
-          <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importaDati(event)">
-        </label>
-      </div>
+      <!-- Versione in basso a sinistra -->
+      <div class="app-version">v1.5</div>
     </div>
   </div>
 
   <!-- VISTA 2: DETTAGLIO -->
   <div id="detail-view" class="view">
     <div class="container">
-      <div class="card card-center">
-        <h2>Scheda Articolo Convalidata</h2>
-        <p style="font-size: 18px; margin: 10px 0;">Codice ID Finale: <strong id="detId">-----</strong></p>
-        
-        <div class="test-box" id="testOutput">
-          <b>Riscontro Convalida Etichetta:</b><br>
-          - IDdet dal QR: <span id="testQrId">-</span><br>
-          - Stringa OCR / DB: <span id="testRawString">-</span><br>
-          - IDdet da Stringa: <span id="testStringId">-</span><br>
-          - Codice Tipo Prodotto (10 cifre): <span id="testTypeCode">-</span>
+      <div class="content-area">
+        <div class="card card-center" style="margin-top: 10px;">
+          <h2>Scheda Articolo Convalidata</h2>
+          <p style="font-size: 18px; margin: 10px 0;">Codice ID Finale: <strong id="detId">-----</strong></p>
+          
+          <div class="test-box" id="testOutput">
+            <b>Riscontro Convalida Etichetta:</b><br>
+            - IDdet dal QR: <span id="testQrId">-</span><br>
+            - Stringa OCR / DB: <span id="testRawString">-</span><br>
+            - IDdet da Stringa: <span id="testStringId">-</span><br>
+            - Codice Tipo Prodotto (10 cifre): <span id="testTypeCode">-</span>
+          </div>
+
+          <div id="revisionStatus"></div>
+
+          <button id="revButton" class="btn btn-green" onclick="segnaRevisionato()">✔️ Segna come revisionato da me</button>
+          <button class="btn btn-gray" onclick="tornaAllaHome()">⬅️ Torna alla Home / Scanner</button>
         </div>
-
-        <div id="revisionStatus"></div>
-
-        <button id="revButton" class="btn btn-green" onclick="segnaRevisionato()">✔️ Segna come revisionato da me</button>
-        <button class="btn btn-gray" onclick="tornaAllaHome()">⬅️ Torna alla Home / Scanner</button>
       </div>
+
+      <!-- Versione in basso a sinistra anche nel dettaglio -->
+      <div class="app-version">v1.5</div>
     </div>
   </div>
 
@@ -95,14 +116,12 @@
     let isProcessing = false;
 
     window.onload = function() {
-      // Inizializza la history dello stato iniziale
       history.replaceState({ view: 'home' }, "", "#home");
       
-      // Gestisce il tasto "Indietro" del dispositivo / browser
       window.onpopstate = function(event) {
         const detailView = document.getElementById('detail-view');
         if (detailView.classList.contains('active')) {
-          tornaAllaHome(true); // true = non aggiungere un altro stato alla history
+          tornaAllaHome(true);
         }
       };
 
@@ -128,21 +147,31 @@
 
       const qrId = estraiIddetDaUrl(decodedText);
       
-      // 1. CONTROLLO NEL DATABASE LOCALE (localStorage)
-      const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let revisioni = {};
+      try {
+        revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      } catch(e) {
+        revisioni = {};
+      }
       
-      if (revisioni[qrId] && revisioni[qrId].typeCode) {
-        // Articolo già presente in DB: salta OCR ed entra subito!
+      if (revisioni[qrId] && (revisioni[qrId] === true || revisioni[qrId].typeCode)) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura immediata...";
-        html5QrCode.stop().then(() => {
-          apriDettaglio(qrId, qrId, revisioni[qrId].rawText, revisioni[qrId].typeCode);
-        }).catch(() => {
-          apriDettaglio(qrId, qrId, revisioni[qrId].rawText, revisioni[qrId].typeCode);
-        });
+        
+        let storedTypeCode = (typeof revisioni[qrId] === 'object' && revisioni[qrId].typeCode) ? revisioni[qrId].typeCode : "Salvato in precedenza";
+        let storedRaw = (typeof revisioni[qrId] === 'object' && revisioni[qrId].rawText) ? revisioni[qrId].rawText : qrId + " (Cache)";
+
+        if(html5QrCode && html5QrCode.isScanning) {
+          html5QrCode.stop().then(() => {
+            apriDettaglio(qrId, qrId, storedRaw, storedTypeCode);
+          }).catch(() => {
+            apriDettaglio(qrId, qrId, storedRaw, storedTypeCode);
+          });
+        } else {
+          apriDettaglio(qrId, qrId, storedRaw, storedTypeCode);
+        }
         return;
       }
 
-      // 2. SE NON È IN DB: Procedi con la cattura OCR automatica
       document.getElementById('scannerStatus').innerText = "QR Rilevato! Analisi OCR in corso...";
       catturaFotogrammaEseguiOCR(qrId);
     }
@@ -216,7 +245,6 @@
         return;
       }
 
-      // Regole rispettate: ferma lo scanner e apri i dettagli
       html5QrCode.stop().then(() => {
         apriDettaglio(qrId, stringId, cleanedText, restoStringa);
       }).catch(() => {
@@ -264,11 +292,17 @@
       document.getElementById('testStringId').innerText = stringId;
       document.getElementById('testTypeCode').innerText = typeCode;
 
-      const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let revisioni = {};
+      try {
+        revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      } catch(e) {
+        revisioni = {};
+      }
+
       const statusDiv = document.getElementById('revisionStatus');
       const revButton = document.getElementById('revButton');
 
-      if (revisioni[currentId] && revisioni[currentId].revised) {
+      if (revisioni[currentId]) {
         statusDiv.innerHTML = `<div class="badge-me">✅ Questo articolo è stato revisionato da TE.</div>`;
         revButton.style.display = 'none';
       } else {
@@ -276,20 +310,22 @@
         revButton.style.display = 'inline-block';
       }
 
-      // Gestione viste e history per il tasto indietro
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('detail-view').classList.add('active');
       
-      // Aggiunge lo stato alla history solo se non siamo già in modalità popstate
       if (location.hash !== "#detail") {
         history.pushState({ view: 'detail' }, "", "#detail");
       }
     }
 
     function segnaRevisionato() {
-      const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let revisioni = {};
+      try {
+        revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      } catch(e) {
+        revisioni = {};
+      }
       
-      // Salva nel database locale sia lo stato di revisione che i dati tecnici validati
       revisioni[currentId] = {
         revised: true,
         typeCode: document.getElementById('testTypeCode').innerText,
@@ -303,10 +339,13 @@
     }
 
     function tornaAllaHome(fromPopState = false) {
+      isProcessing = false;
+      document.getElementById('statusAlert').innerText = "";
+      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
+
       document.getElementById('detail-view').classList.remove('active');
       document.getElementById('home-view').classList.add('active');
       document.getElementById('manualInput').value = '';
-      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
       
       if (!fromPopState && location.hash !== "#home") {
         history.pushState({ view: 'home' }, "", "#home");
