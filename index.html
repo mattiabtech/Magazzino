@@ -87,7 +87,7 @@
         </div>
       </div>
 
-      <div class="app-version">v1.7</div>
+      <div class="app-version">v1.8</div>
     </div>
   </div>
 
@@ -109,7 +109,7 @@
         </div>
       </div>
 
-      <div class="app-version">v1.7</div>
+      <div class="app-version">v1.8</div>
     </div>
   </div>
 
@@ -162,7 +162,7 @@
         revisioni = {};
       }
       
-      // Se già in database, salta OCR
+      // Controllo robusto in memoria locale
       if (revisioni[qrId] && revisioni[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura immediata...";
         let storedTypeCode = revisioni[qrId].typeCode;
@@ -215,8 +215,8 @@
     function validaEProcedi(qrId, rawOcrText, confidence) {
       let cleanedText = rawOcrText.replace(/\D/g, '');
 
-      if (cleanedText.length < 5) {
-        riavviaPerErrore("OCR non nitido (ID non trovato). Riprovo...");
+      if (cleanedText.length < 10) {
+        riavviaPerErrore("OCR non completo. Riprovo...");
         return;
       }
 
@@ -227,15 +227,20 @@
         return;
       }
 
-      const restoStringa = cleanedText.substring(5);
+      // Togliamo le prime 5 cifre (iddet) e prendiamo le successive 10 cifre
+      const stringaSenzaId = cleanedText.substring(5);
 
-      if (restoStringa.length !== 10) {
-        riavviaPerErrore(`La parte dopo l'ID deve essere di 10 cifre (rilevate: ${restoStringa.length})`);
+      if (stringaSenzaId.length < 10) {
+        riavviaPerErrore(`Stringa corta (${stringaSenzaId.length} cifre). Riprovo...`);
         return;
       }
 
-      const prefisso4 = restoStringa.substring(0, 4);
-      const subCodice3 = restoStringa.substring(4, 7);
+      // Isola esattamente le 10 cifre del tipo oggetto
+      const dieciCifreTipo = stringaSenzaId.substring(0, 10);
+
+      // Regole su prefisso (0445 o 0470) e relativi sotto-codici
+      const prefisso4 = dieciCifreTipo.substring(0, 4);
+      const subCodice3 = dieciCifreTipo.substring(4, 7);
 
       const ammessi0445 = ['010', '110', '120', '115', '116', '117', '118', '124', '011'];
       const ammessi0470 = ['004', '006', '504', '506'];
@@ -249,20 +254,18 @@
       }
 
       if (!codiceValido) {
-        riavviaPerErrore(`Regola codice tipo fallita (${prefisso4}-${subCodice3})`);
+        riavviaPerErrore(`Prefisso/Codice non valido (${prefisso4}-${subCodice3})`);
         return;
       }
 
-      const codiceCompleto15 = qrId + restoStringa;
-
       if(html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(() => {
-          mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
+          mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
         }).catch(() => {
-          mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
+          mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
         });
       } else {
-        mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
+        mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
       }
     }
 
@@ -297,22 +300,22 @@
       }
       
       azioneStop.then(() => {
-        mostraRisultato(val, val + " (Manuale)", "manuale", 100);
+        mostraRisultato(val, "0445000000", "manuale", 100);
       });
     }
 
-    function mostraRisultato(qrId, codiceCompleto, statoOcr, confidenza) {
+    function mostraRisultato(qrId, codiceTipo, statoOcr, confidenza) {
       currentId = qrId;
 
       const logTesto = 
 `QR: ${qrId} riconosciuto
-OCR: ${statoOcr} / ${codiceCompleto}
+OCR: ${statoOcr} / ${codiceTipo}
 probabilità (${confidenza}% ${statoOcr === 'memorizzato' ? 'se memorizzato' : ''})
 
 risultato finale
 
 id: ${qrId}
-codice ${codiceCompleto}`;
+codice ${codiceTipo}`;
 
       document.getElementById('testLogOutput').innerText = logTesto;
 
@@ -326,7 +329,7 @@ codice ${codiceCompleto}`;
       const statusDiv = document.getElementById('revisionStatus');
       const revButton = document.getElementById('revButton');
 
-      if (revisioni[currentId]) {
+      if (revisioni[currentId] && revisioni[currentId].revised) {
         statusDiv.innerHTML = `<div class="badge-me">✅ Questo articolo è stato revisionato da TE.</div>`;
         revButton.style.display = 'none';
       } else {
@@ -354,6 +357,7 @@ codice ${codiceCompleto}`;
       const ultimaLinea = logLines[logLines.length - 1] || "";
       const codiceSalvato = ultimaLinea.replace("codice ", "").trim();
 
+      // Salva correttamente l'oggetto strutturato con il codice associato
       revisioni[currentId] = {
         revised: true,
         typeCode: codiceSalvato,
@@ -390,7 +394,6 @@ codice ${codiceCompleto}`;
       a.href = url;
       a.download = `backup_revisioni_${new Date().toISOString().slice(0,10)}.json`;
       
-      // Metodo robusto compatibile con tutti i browser mobili e desktop
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
