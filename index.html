@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Magazzino - Test OCR Automatico</title>
+  <title>Magazzino - Test OCR e Affidabilità</title>
   <!-- Librerie Scanner QR e OCR (Tesseract) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
@@ -32,34 +32,29 @@
     /* Box per i risultati di test */
     .test-box { background: #e9ecef; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px; text-align: left; margin: 15px 0; word-break: break-all; }
     
-    /* Canvas nascosto per catturare il fotogramma della telecamera */
     #snapshotCanvas { display: none; }
   </style>
 </head>
 <body>
 
-  <!-- VISTA 1: HOME (Scanner QR + Form Manuale) -->
+  <!-- VISTA 1: HOME -->
   <div id="home-view" class="view active">
     <div class="container">
-      <h2>Magazzino - Test OCR</h2>
+      <h2>Magazzino - Test OCR & Confidenza</h2>
       
-      <!-- Form manuale -->
       <div class="card card-center">
         <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
         <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161">
         <button class="btn" onclick="procediManualcode()">Vai al Dettaglio</button>
       </div>
 
-      <!-- Sezione Scanner -->
       <div style="margin-top: 20px;">
         <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
         <div id="reader"></div>
       </div>
 
-      <!-- Canvas nascosto per la cattura dell'immagine -->
       <canvas id="snapshotCanvas"></canvas>
 
-      <!-- Gestione Backup -->
       <div class="card">
         <p style="margin-top:0; font-size: 14px; color: #666; font-weight: bold; text-align: center;">Gestione Dati (Backup)</p>
         <button class="btn btn-gray" style="margin-top: 5px;" onclick="esportaDati()">📥 Scarica Backup (JSON)</button>
@@ -78,12 +73,12 @@
         <h2>Scheda Articolo & Test</h2>
         <p style="font-size: 18px; margin: 10px 0;">Codice ID Finale: <strong id="detId">-----</strong></p>
         
-        <!-- Area di stampa dei dati di testing richiesti -->
         <div class="test-box" id="testOutput">
           <b>Dati di Test OCR/QR:</b><br>
           - IDdet dal QR: <span id="testQrId">-</span><br>
           - Stringa letta sotto: <span id="testRawString">-</span><br>
-          - IDdet dalla stringa: <span id="testStringId">-</span>
+          - IDdet dalla stringa: <span id="testStringId">-</span><br>
+          - <b>Affidabilità OCR:</b> <span id="testConfidence">-</span>%
         </div>
 
         <div id="revisionStatus"></div>
@@ -113,24 +108,17 @@
       });
     }
 
-    // Quando rileva il QR code
     function onScanSuccess(decodedText) {
-      // 1. Estrae l'IDdet dal QR
       const qrId = estraiIddetDaUrl(decodedText);
-      
-      document.getElementById('scannerStatus').innerText = "QR rilevato! Analisi testo etichetta in corso...";
-
-      // 2. Cattura l'immagine corrente dal feed video dello scanner
+      document.getElementById('scannerStatus').innerText = "QR rilevato! Lettura testo in corso...";
       catturaFotogrammaEseguiOCR(qrId);
     }
 
-    // Cattura il fotogramma video e lancia Tesseract OCR
     function catturaFotogrammaEseguiOCR(qrId) {
       const videoElement = document.querySelector('#reader video');
       
       if (!videoElement) {
-        // Se per qualche motivo il video non è accessibile, procediamo comunque con il solo QR
-        fermaScannerEApriDettaglio(qrId, qrId, "Impossibile catturare fotogramma video");
+        apriDettaglio(qrId, qrId, "N/A", 0);
         return;
       }
 
@@ -142,36 +130,30 @@
 
       const dataURL = canvas.toDataURL('image/png');
 
-      // Ferma lo scanner temporaneamente
       html5QrCode.stop().then(() => {
-        // Esegue l'OCR sull'immagine catturata
         Tesseract.recognize(
           dataURL,
           'eng',
           { logger: m => console.log(m) }
-        ).then(({ data: { text } }) => {
-          elaboraRisultatiTest(qrId, text);
+        ).then(({ data: { text, confidence } }) => {
+          elaboraRisultatiTest(qrId, text, confidence);
         }).catch(err => {
           console.error("Errore OCR:", err);
-          elaboraRisultatiTest(qrId, "Errore OCR: " + err.message);
+          elaboraRisultatiTest(qrId, "Errore OCR", 0);
         });
       }).catch(err => {
         console.error(err);
-        apriDettaglio(qrId, qrId, "Errore arresto scanner");
+        apriDettaglio(qrId, qrId, "Errore arresto scanner", 0);
       });
     }
 
-    // Elabora i testi trovati ed estrae le 5 cifre dalla stringa sotto
-    function elaboraRisultatiTest(qrId, rawOcrText) {
-      // Pulisce il testo OCR da spazi o caratteri strani per trovare le prime cifre numeriche
-      let cleanedText = rawOcrText.replace(/\D/g, ''); // Prende solo i numeri
+    function elaboraRisultatiTest(qrId, rawOcrText, confidence) {
+      let cleanedText = rawOcrText.replace(/\D/g, '');
       let stringId = cleanedText.length >= 5 ? cleanedText.substring(0, 5) : cleanedText;
       
-      // Passa alla pagina di dettaglio stampando i dati di test
-      apriDettaglio(qrId, stringId, rawOcrText.trim());
+      apriDettaglio(qrId, stringId, rawOcrText.trim(), Math.round(confidence));
     }
 
-    // Estrae il parametro iddet dal link o usa il testo
     function estraiIddetDaUrl(testo) {
       try {
         const url = new URL(testo);
@@ -182,7 +164,6 @@
       }
     }
 
-    // Gestione inserimento manuale
     function procediManualcode() {
       const val = document.getElementById('manualInput').value.trim();
       if(!val) {
@@ -190,21 +171,21 @@
         return;
       }
       if(html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => apriDettaglio(val, val, "Inserimento manuale")).catch(() => apriDettaglio(val, val, "Inserimento manuale"));
+        html5QrCode.stop().then(() => apriDettaglio(val, val, "Inserimento manuale", 100)).catch(() => apriDettaglio(val, val, "Inserimento manuale", 100));
       } else {
-        apriDettaglio(val, val, "Inserimento manuale");
+        apriDettaglio(val, val, "Inserimento manuale", 100);
       }
     }
 
-    // Mostra la pagina di dettaglio con i dati di testing
-    function apriDettaglio(qrId, stringId, rawText) {
-      currentId = qrId; // Usiamo l'ID principale per il magazzino
+    function apriDettaglio(qrId, stringId, rawText, confidence) {
+      currentId = qrId;
       document.getElementById('detId').innerText = qrId;
 
-      // Stampa i dati di test richiesti
+      // Stampa i dati aggiornati compresa la percentuale di confidenza
       document.getElementById('testQrId').innerText = qrId;
       document.getElementById('testRawString').innerText = rawText;
       document.getElementById('testStringId').innerText = stringId;
+      document.getElementById('testConfidence').innerText = confidence;
 
       const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       const statusDiv = document.getElementById('revisionStatus');
@@ -228,8 +209,7 @@
       localStorage.setItem('miei_revisionati', JSON.stringify(revisioni));
       
       alert("Salvato! Articolo segnato come revisionato da te.");
-      // Ricarica la vista di dettaglio mantenendo i dati di test
-      apriDettaglio(currentId, document.getElementById('testStringId').innerText, document.getElementById('testRawString').innerText);
+      apriDettaglio(currentId, document.getElementById('testStringId').innerText, document.getElementById('testRawString').innerText, document.getElementById('testConfidence').innerText);
     }
 
     function esportaDati() {
