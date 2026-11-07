@@ -76,7 +76,7 @@
         <div class="test-box" id="testOutput">
           <b>Riscontro Convalida Etichetta:</b><br>
           - IDdet dal QR: <span id="testQrId">-</span><br>
-          - Stringa OCR Riconosciuta: <span id="testRawString">-</span><br>
+          - Stringa OCR / DB: <span id="testRawString">-</span><br>
           - IDdet da Stringa: <span id="testStringId">-</span><br>
           - Codice Tipo Prodotto (10 cifre): <span id="testTypeCode">-</span>
         </div>
@@ -95,6 +95,17 @@
     let isProcessing = false;
 
     window.onload = function() {
+      // Inizializza la history dello stato iniziale
+      history.replaceState({ view: 'home' }, "", "#home");
+      
+      // Gestisce il tasto "Indietro" del dispositivo / browser
+      window.onpopstate = function(event) {
+        const detailView = document.getElementById('detail-view');
+        if (detailView.classList.contains('active')) {
+          tornaAllaHome(true); // true = non aggiungere un altro stato alla history
+        }
+      };
+
       startScanner();
     };
 
@@ -116,8 +127,23 @@
       isProcessing = true;
 
       const qrId = estraiIddetDaUrl(decodedText);
-      document.getElementById('scannerStatus').innerText = "QR Rilevato! Verifica stringa sotto...";
+      
+      // 1. CONTROLLO NEL DATABASE LOCALE (localStorage)
+      const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      
+      if (revisioni[qrId] && revisioni[qrId].typeCode) {
+        // Articolo già presente in DB: salta OCR ed entra subito!
+        document.getElementById('scannerStatus').innerText = "ID già in database! Apertura immediata...";
+        html5QrCode.stop().then(() => {
+          apriDettaglio(qrId, qrId, revisioni[qrId].rawText, revisioni[qrId].typeCode);
+        }).catch(() => {
+          apriDettaglio(qrId, qrId, revisioni[qrId].rawText, revisioni[qrId].typeCode);
+        });
+        return;
+      }
 
+      // 2. SE NON È IN DB: Procedi con la cattura OCR automatica
+      document.getElementById('scannerStatus').innerText = "QR Rilevato! Analisi OCR in corso...";
       catturaFotogrammaEseguiOCR(qrId);
     }
 
@@ -150,10 +176,8 @@
     }
 
     function validaEProcedi(qrId, rawOcrText) {
-      // Estrae solo le cifre numeriche trovate
       let cleanedText = rawOcrText.replace(/\D/g, '');
 
-      // 1. Verifica che la stringa contenga almeno i 5 digit di IDdet
       if (cleanedText.length < 5) {
         riavviaPerErrore("OCR non nitido (ID non trovato). Riscan in corso...");
         return;
@@ -161,22 +185,18 @@
 
       const stringId = cleanedText.substring(0, 5);
 
-      // 2. Controllo Corrispondenza IDdet (QR vs Stringa Foto)
       if (stringId !== qrId) {
         riavviaPerErrore(`ID non corrispondenti! QR: ${qrId} vs Testo: ${stringId}. Riscan...`);
         return;
       }
 
-      // 3. Estrazione parte successiva all'ID (Tipo Oggetto)
       const restoStringa = cleanedText.substring(5);
 
-      // La parte successiva deve essere ESATTAMENTE di 10 cifre
       if (restoStringa.length !== 10) {
         riavviaPerErrore(`La parte dopo l'ID deve essere di 10 cifre (rilevate: ${restoStringa.length}). Riscan...`);
         return;
       }
 
-      // 4. Convalida regole su prefisso (0445 o 0470) e relativi sotto-codici
       const prefisso4 = restoStringa.substring(0, 4);
       const subCodice3 = restoStringa.substring(4, 7);
 
@@ -196,7 +216,7 @@
         return;
       }
 
-      // SE TUTTE LE REGOLE SONO RISPETTATE: Ferma lo scanner e apri i dettagli
+      // Regole rispettate: ferma lo scanner e apri i dettagli
       html5QrCode.stop().then(() => {
         apriDettaglio(qrId, stringId, cleanedText, restoStringa);
       }).catch(() => {
@@ -229,9 +249,9 @@
         return;
       }
       if(html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => apriDettaglio(val, val, "Manuale", "N/A")).catch(() => apriDettaglio(val, val, "Manuale", "N/A"));
+        html5QrCode.stop().then(() => apriDettaglio(val, val, "Inserimento manuale", "N/A")).catch(() => apriDettaglio(val, val, "Inserimento manuale", "N/A"));
       } else {
-        apriDettaglio(val, val, "Manuale", "N/A");
+        apriDettaglio(val, val, "Inserimento manuale", "N/A");
       }
     }
 
@@ -248,7 +268,7 @@
       const statusDiv = document.getElementById('revisionStatus');
       const revButton = document.getElementById('revButton');
 
-      if (revisioni[currentId]) {
+      if (revisioni[currentId] && revisioni[currentId].revised) {
         statusDiv.innerHTML = `<div class="badge-me">✅ Questo articolo è stato revisionato da TE.</div>`;
         revButton.style.display = 'none';
       } else {
@@ -256,17 +276,43 @@
         revButton.style.display = 'inline-block';
       }
 
+      // Gestione viste e history per il tasto indietro
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('detail-view').classList.add('active');
+      
+      // Aggiunge lo stato alla history solo se non siamo già in modalità popstate
+      if (location.hash !== "#detail") {
+        history.pushState({ view: 'detail' }, "", "#detail");
+      }
     }
 
     function segnaRevisionato() {
       const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      revisioni[currentId] = true;
+      
+      // Salva nel database locale sia lo stato di revisione che i dati tecnici validati
+      revisioni[currentId] = {
+        revised: true,
+        typeCode: document.getElementById('testTypeCode').innerText,
+        rawText: document.getElementById('testRawString').innerText
+      };
+      
       localStorage.setItem('miei_revisionati', JSON.stringify(revisioni));
       
       alert("Salvato! Articolo segnato come revisionato da te.");
       apriDettaglio(currentId, document.getElementById('testStringId').innerText, document.getElementById('testRawString').innerText, document.getElementById('testTypeCode').innerText);
+    }
+
+    function tornaAllaHome(fromPopState = false) {
+      document.getElementById('detail-view').classList.remove('active');
+      document.getElementById('home-view').classList.add('active');
+      document.getElementById('manualInput').value = '';
+      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
+      
+      if (!fromPopState && location.hash !== "#home") {
+        history.pushState({ view: 'home' }, "", "#home");
+      }
+      
+      startScanner();
     }
 
     function esportaDati() {
@@ -297,14 +343,6 @@
         }
       };
       reader.readAsText(file);
-    }
-
-    function tornaAllaHome() {
-      document.getElementById('detail-view').classList.remove('active');
-      document.getElementById('home-view').classList.add('active');
-      document.getElementById('manualInput').value = '';
-      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
-      startScanner();
     }
   </script>
 </body>
