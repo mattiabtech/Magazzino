@@ -85,10 +85,11 @@
             📤 Ripristina Backup
             <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importaDati(event)">
           </label>
+          <button class="btn btn-danger" style="margin-top: 10px;" onclick="eliminaDatabase()">🗑️ Elimina database locale</button>
         </div>
       </div>
 
-      <div class="app-version">v2.0</div>
+      <div class="app-version">v2.1</div>
     </div>
   </div>
 
@@ -111,7 +112,7 @@
         </div>
       </div>
 
-      <div class="app-version">v2.0</div>
+      <div class="app-version">v2.1</div>
     </div>
   </div>
 
@@ -165,7 +166,6 @@
         database = {};
       }
       
-      // Controllo se l'etichetta è già presente nel database (indipendentemente da 'revised')
       if (database[qrId] && database[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura immediata...";
         let storedTypeCode = database[qrId].typeCode;
@@ -182,7 +182,6 @@
         return;
       }
 
-      // Se non è in database, procede con la prima lettura OCR
       document.getElementById('scannerStatus').innerText = "QR Rilevato! Analisi OCR in corso...";
       catturaFotogrammaEseguiOCR(qrId);
     }
@@ -258,7 +257,6 @@
         return;
       }
 
-      // MEMORIZZA AUTOMATICAMENTE IL CODICE IN MEMORIA LOCALE (revised inizialmente false)
       memorizzaCodice(qrId, dieciCifreTipo);
 
       if(html5QrCode && html5QrCode.isScanning) {
@@ -272,7 +270,6 @@
       }
     }
 
-    // Salva o aggiorna i dati mantenendo intatto lo stato di 'revised' se già esistente
     function memorizzaCodice(id, codiceTipo, statoRevisione = null) {
       let database = {};
       try {
@@ -356,7 +353,6 @@ codice ${codiceTipo}`;
 
       document.getElementById('testLogOutput').innerText = logTesto;
 
-      // Legge lo stato di revisione corrente
       let database = {};
       try {
         database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
@@ -438,6 +434,13 @@ codice ${codiceTipo}`;
         }
       };
       reader.readAsText(file);
+    }
+
+    function eliminaDatabase() {
+      if (confirm("Sei sicuro di voler eliminare tutto il database locale? Questa operazione cancellerà tutti i dati memorizzati.")) {
+        localStorage.removeItem('miei_revisionati');
+        alert("Database locale eliminato con successo.");
+      }
     }
   </script>
 </body>
