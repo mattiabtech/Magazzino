@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Magazzino - Test OCR e Affidabilità</title>
-  <!-- Librerie Scanner QR e OCR (Tesseract) -->
+  <title>Magazzino - Scanner e Validazione OCR</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
   <style>
@@ -29,8 +28,8 @@
     .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     .badge-other { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     
-    /* Box per i risultati di test */
     .test-box { background: #e9ecef; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px; text-align: left; margin: 15px 0; word-break: break-all; }
+    .status-msg { margin: 10px 0; font-size: 14px; color: #d9534f; font-weight: bold; }
     
     #snapshotCanvas { display: none; }
   </style>
@@ -40,7 +39,7 @@
   <!-- VISTA 1: HOME -->
   <div id="home-view" class="view active">
     <div class="container">
-      <h2>Magazzino - Test OCR & Confidenza</h2>
+      <h2>Magazzino - Validazione Etichetta</h2>
       
       <div class="card card-center">
         <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
@@ -50,6 +49,7 @@
 
       <div style="margin-top: 20px;">
         <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
+        <div id="statusAlert" class="status-msg"></div>
         <div id="reader"></div>
       </div>
 
@@ -66,19 +66,19 @@
     </div>
   </div>
 
-  <!-- VISTA 2: PAGINA DETTAGLIO / TEST -->
+  <!-- VISTA 2: DETTAGLIO -->
   <div id="detail-view" class="view">
     <div class="container">
       <div class="card card-center">
-        <h2>Scheda Articolo & Test</h2>
+        <h2>Scheda Articolo Convalidata</h2>
         <p style="font-size: 18px; margin: 10px 0;">Codice ID Finale: <strong id="detId">-----</strong></p>
         
         <div class="test-box" id="testOutput">
-          <b>Dati di Test OCR/QR:</b><br>
+          <b>Riscontro Convalida Etichetta:</b><br>
           - IDdet dal QR: <span id="testQrId">-</span><br>
-          - Stringa letta sotto: <span id="testRawString">-</span><br>
-          - IDdet dalla stringa: <span id="testStringId">-</span><br>
-          - <b>Affidabilità OCR:</b> <span id="testConfidence">-</span>%
+          - Stringa OCR Riconosciuta: <span id="testRawString">-</span><br>
+          - IDdet da Stringa: <span id="testStringId">-</span><br>
+          - Codice Tipo Prodotto (10 cifre): <span id="testTypeCode">-</span>
         </div>
 
         <div id="revisionStatus"></div>
@@ -92,12 +92,15 @@
   <script>
     let html5QrCode;
     let currentId = "";
+    let isProcessing = false;
 
     window.onload = function() {
       startScanner();
     };
 
     function startScanner() {
+      isProcessing = false;
+      document.getElementById('statusAlert').innerText = "";
       html5QrCode = new Html5Qrcode("reader");
       html5QrCode.start(
         { facingMode: "environment" },
@@ -109,8 +112,12 @@
     }
 
     function onScanSuccess(decodedText) {
+      if (isProcessing) return;
+      isProcessing = true;
+
       const qrId = estraiIddetDaUrl(decodedText);
-      document.getElementById('scannerStatus').innerText = "QR rilevato! Lettura testo in corso...";
+      document.getElementById('scannerStatus').innerText = "QR Rilevato! Verifica stringa sotto...";
+
       catturaFotogrammaEseguiOCR(qrId);
     }
 
@@ -118,7 +125,7 @@
       const videoElement = document.querySelector('#reader video');
       
       if (!videoElement) {
-        apriDettaglio(qrId, qrId, "N/A", 0);
+        riavviaPerErrore("Impossibile accedere al feed fotocamera.");
         return;
       }
 
@@ -130,28 +137,79 @@
 
       const dataURL = canvas.toDataURL('image/png');
 
-      html5QrCode.stop().then(() => {
-        Tesseract.recognize(
-          dataURL,
-          'eng',
-          { logger: m => console.log(m) }
-        ).then(({ data: { text, confidence } }) => {
-          elaboraRisultatiTest(qrId, text, confidence);
-        }).catch(err => {
-          console.error("Errore OCR:", err);
-          elaboraRisultatiTest(qrId, "Errore OCR", 0);
-        });
+      Tesseract.recognize(
+        dataURL,
+        'eng',
+        { logger: m => console.log(m) }
+      ).then(({ data: { text } }) => {
+        validaEProcedi(qrId, text);
       }).catch(err => {
-        console.error(err);
-        apriDettaglio(qrId, qrId, "Errore arresto scanner", 0);
+        console.error("Errore OCR:", err);
+        riavviaPerErrore("Errore lettura OCR, nuovo tentativo...");
       });
     }
 
-    function elaboraRisultatiTest(qrId, rawOcrText, confidence) {
+    function validaEProcedi(qrId, rawOcrText) {
+      // Estrae solo le cifre numeriche trovate
       let cleanedText = rawOcrText.replace(/\D/g, '');
-      let stringId = cleanedText.length >= 5 ? cleanedText.substring(0, 5) : cleanedText;
-      
-      apriDettaglio(qrId, stringId, rawOcrText.trim(), Math.round(confidence));
+
+      // 1. Verifica che la stringa contenga almeno i 5 digit di IDdet
+      if (cleanedText.length < 5) {
+        riavviaPerErrore("OCR non nitido (ID non trovato). Riscan in corso...");
+        return;
+      }
+
+      const stringId = cleanedText.substring(0, 5);
+
+      // 2. Controllo Corrispondenza IDdet (QR vs Stringa Foto)
+      if (stringId !== qrId) {
+        riavviaPerErrore(`ID non corrispondenti! QR: ${qrId} vs Testo: ${stringId}. Riscan...`);
+        return;
+      }
+
+      // 3. Estrazione parte successiva all'ID (Tipo Oggetto)
+      const restoStringa = cleanedText.substring(5);
+
+      // La parte successiva deve essere ESATTAMENTE di 10 cifre
+      if (restoStringa.length !== 10) {
+        riavviaPerErrore(`La parte dopo l'ID deve essere di 10 cifre (rilevate: ${restoStringa.length}). Riscan...`);
+        return;
+      }
+
+      // 4. Convalida regole su prefisso (0445 o 0470) e relativi sotto-codici
+      const prefisso4 = restoStringa.substring(0, 4);
+      const subCodice3 = restoStringa.substring(4, 7);
+
+      const ammessi0445 = ['010', '110', '120', '115', '116', '117', '118', '124', '011'];
+      const ammessi0470 = ['004', '006', '504', '506'];
+
+      let codiceValido = false;
+
+      if (prefisso4 === '0445' && ammessi0445.includes(subCodice3)) {
+        codiceValido = true;
+      } else if (prefisso4 === '0470' && ammessi0470.includes(subCodice3)) {
+        codiceValido = true;
+      }
+
+      if (!codiceValido) {
+        riavviaPerErrore(`Regola codice tipo fallita (${prefisso4}-${subCodice3}). Riscan...`);
+        return;
+      }
+
+      // SE TUTTE LE REGOLE SONO RISPETTATE: Ferma lo scanner e apri i dettagli
+      html5QrCode.stop().then(() => {
+        apriDettaglio(qrId, stringId, cleanedText, restoStringa);
+      }).catch(() => {
+        apriDettaglio(qrId, stringId, cleanedText, restoStringa);
+      });
+    }
+
+    function riavviaPerErrore(messaggio) {
+      document.getElementById('statusAlert').innerText = messaggio;
+      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
+      setTimeout(() => {
+        isProcessing = false;
+      }, 1000);
     }
 
     function estraiIddetDaUrl(testo) {
@@ -171,21 +229,20 @@
         return;
       }
       if(html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => apriDettaglio(val, val, "Inserimento manuale", 100)).catch(() => apriDettaglio(val, val, "Inserimento manuale", 100));
+        html5QrCode.stop().then(() => apriDettaglio(val, val, "Manuale", "N/A")).catch(() => apriDettaglio(val, val, "Manuale", "N/A"));
       } else {
-        apriDettaglio(val, val, "Inserimento manuale", 100);
+        apriDettaglio(val, val, "Manuale", "N/A");
       }
     }
 
-    function apriDettaglio(qrId, stringId, rawText, confidence) {
+    function apriDettaglio(qrId, stringId, rawText, typeCode) {
       currentId = qrId;
       document.getElementById('detId').innerText = qrId;
 
-      // Stampa i dati aggiornati compresa la percentuale di confidenza
       document.getElementById('testQrId').innerText = qrId;
       document.getElementById('testRawString').innerText = rawText;
       document.getElementById('testStringId').innerText = stringId;
-      document.getElementById('testConfidence').innerText = confidence;
+      document.getElementById('testTypeCode').innerText = typeCode;
 
       const revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       const statusDiv = document.getElementById('revisionStatus');
@@ -209,7 +266,7 @@
       localStorage.setItem('miei_revisionati', JSON.stringify(revisioni));
       
       alert("Salvato! Articolo segnato come revisionato da te.");
-      apriDettaglio(currentId, document.getElementById('testStringId').innerText, document.getElementById('testRawString').innerText, document.getElementById('testConfidence').innerText);
+      apriDettaglio(currentId, document.getElementById('testStringId').innerText, document.getElementById('testRawString').innerText, document.getElementById('testTypeCode').innerText);
     }
 
     function esportaDati() {
