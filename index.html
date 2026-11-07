@@ -20,7 +20,7 @@
     .menu-btn { background: none; border: none; font-size: 24px; cursor: pointer; padding: 5px 10px; border-radius: 50%; color: #333; }
     .menu-btn:hover { background: #e0e0e0; }
     
-    .dropdown-menu { display: none; position: absolute; right: 0; top: 40px; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; width: 220px; z-index: 100; text-align: left; overflow: hidden; }
+    .dropdown-menu { display: none; position: absolute; right: 0; top: 40px; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; width: 240px; z-index: 100; text-align: left; overflow: hidden; }
     .dropdown-menu.show { display: block; }
     .dropdown-item { padding: 12px 16px; display: block; color: #333; text-decoration: none; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; background: white; border: none; width: 100%; text-align: left; }
     .dropdown-item:last-child { border-bottom: none; }
@@ -31,7 +31,7 @@
     .view.active { display: flex; }
     .content-area { flex-grow: 1; }
 
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #000; min-height: 250px; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #000; min-height: 220px; }
     
     .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 15px; text-align: left; }
     .card-center { text-align: center; }
@@ -50,10 +50,21 @@
     .btn-gray { background: #6c757d; }
     .btn-info { background: #17a2b8; }
     .btn-small { padding: 8px 15px; font-size: 14px; margin-top: 5px; }
+    .btn-group-inline { display: flex; gap: 10px; }
 
     .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     .badge-other { background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     .status-msg { margin: 10px 0; font-size: 14px; color: #d9534f; font-weight: bold; }
+    
+    .history-box { margin-top: 15px; background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: left; }
+    .history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
+    .history-item { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .history-item:hover { background: #f8f9fa; }
+
+    .list-container { max-height: 60vh; overflow-y: auto; margin-top: 10px; }
+    .list-row { background: #fff; padding: 12px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; font-size: 14px; cursor: pointer; text-align: left; }
+    .list-row:hover { background: #f1f1f1; }
+
     .app-version { font-size: 12px; color: #999; text-align: left; padding: 10px 0; margin-top: auto; }
     #snapshotCanvas { display: none; }
   </style>
@@ -68,27 +79,40 @@
           <h2>Magazzino - Validazione</h2>
           <button class="menu-btn" onclick="toggleMenu(event, 'dropdownMenu')">⋮</button>
           <div id="dropdownMenu" class="dropdown-menu">
-            <div class="dropdown-item" onclick="cambiaVista('settings-view')">⚙️ Impostazioni</div>
+            <div class="dropdown-item" onclick="apriPagina('settings-view', '#settings')">⚙️ Impostazioni</div>
+            <div class="dropdown-item" onclick="apriPagina('revised-list-view', '#revised-list')">📋 Lista articoli revisionati</div>
             <div class="dropdown-item" onclick="esportaDati()">📥 Scarica Backup (JSON)</div>
             <label class="dropdown-item">📤 Ripristina Backup<input type="file" accept=".json" style="display:none;" onchange="importaDati(event)"></label>
             <div class="dropdown-item danger-text" onclick="eliminaDatabase()">🗑️ Elimina database</div>
           </div>
         </div>
         
-        <div class="card card-center">
+        <div class="card card-center" style="margin-bottom: 10px;">
           <p style="margin-top:0; font-size: 14px; color: #666;">Inserisci codice a 5 cifre:</p>
           <input type="text" id="manualInput" maxlength="5" placeholder="Es. 54161" style="text-align: center;">
           <button class="btn" onclick="procediManualcode()">Vai al Dettaglio</button>
         </div>
 
-        <div style="margin-top: 15px;">
+        <div style="margin-top: 5px;">
           <p id="scannerStatus" style="margin: 0 0 5px 0; font-size: 14px; color: #666;">Inquadra il QR Code:</p>
           <div id="statusAlert" class="status-msg"></div>
           <div id="reader"></div>
         </div>
+
+        <!-- Cronologia Ultime Scansioni in Home -->
+        <div class="history-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: bold; font-size: 13px; color: #555;">Ultime scansioni</span>
+            <span style="font-size: 12px; color: #007bff; cursor: pointer; font-weight: bold;" onclick="apriPagina('full-history-view', '#history')">Cronologia completa &rsaquo;</span>
+          </div>
+          <ul id="homeHistoryList" class="history-list">
+            <li style="color: #999; text-align: center; font-size: 12px; padding: 10px;">Nessuna scansione recente</li>
+          </ul>
+        </div>
+
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v3.9</div>
+      <div class="app-version">v4.0</div>
     </div>
   </div>
 
@@ -125,7 +149,10 @@
               <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 3px; margin-top: 8px;">Data Revisione (DD/MM/YYYY):</label>
               <input type="text" id="inputEditDate" placeholder="Es. 07/11/2026" style="text-align: center;">
 
-              <button class="btn btn-green btn-small" onclick="confermaModificaArticolo()">Conferma Modifiche</button>
+              <div class="btn-group-inline">
+                <button class="btn btn-gray btn-small" onclick="annullaModificaArticolo()">Annulla</button>
+                <button class="btn btn-green btn-small" onclick="confermaModificaArticolo()">Conferma</button>
+              </div>
             </div>
           </div>
 
@@ -139,7 +166,44 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v3.9</div>
+      <div class="app-version">v4.0</div>
+    </div>
+  </div>
+
+  <!-- CRONOLOGIA COMPLETA -->
+  <div id="full-history-view" class="view">
+    <div class="container">
+      <div class="content-area">
+        <div class="header-bar">
+          <div class="header-left">
+            <button class="back-btn" onclick="tornaAllaHome()">‹</button>
+            <h2>Cronologia Completa</h2>
+          </div>
+        </div>
+        <div class="list-container" id="fullHistoryContainer">
+          <!-- Popolato dinamicamente -->
+        </div>
+      </div>
+      <div class="app-version">v4.0</div>
+    </div>
+  </div>
+
+  <!-- LISTA ARTICOLI REVISIONATI DA ME -->
+  <div id="revised-list-view" class="view">
+    <div class="container">
+      <div class="content-area">
+        <div class="header-bar">
+          <div class="header-left">
+            <button class="back-btn" onclick="tornaAllaHome()">‹</button>
+            <h2>Articoli Revisionati</h2>
+          </div>
+        </div>
+        <input type="text" id="searchInput" placeholder="Cerca codice o ID..." oninput="filtraListaRevisionati()" style="margin-top: 10px;">
+        <div class="list-container" id="revisedListContainer">
+          <!-- Popolato dinamicamente -->
+        </div>
+      </div>
+      <div class="app-version">v4.0</div>
     </div>
   </div>
 
@@ -160,7 +224,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v3.9</div>
+      <div class="app-version">v4.0</div>
     </div>
   </div>
 
@@ -168,12 +232,22 @@
     let html5QrCode = null, currentId = "", currentTypeCode = "", isProcessing = false, selectedCameraId = "";
 
     window.onload = function() {
-      history.replaceState({ view: 'home' }, "", "#home");
-      window.onpopstate = () => tornaAllaHome(true);
+      // Gestione corretta della cronologia di navigazione (History API)
+      if (!location.hash || location.hash === "#home") {
+        history.replaceState({ view: 'home-view' }, "", "#home");
+      }
+
+      window.onpopstate = function(event) {
+        if (event.state && event.state.view) {
+          mostraVistaInterna(event.state.view, false);
+        } else {
+          tornaAllaHome(true);
+        }
+      };
 
       document.addEventListener('click', (e) => {
         ['dropdownMenu', 'dropdownDetailMenu'].forEach(id => {
-          const m = document.getElementById(id), b = m.previousElementSibling;
+          const m = document.getElementById(id), b = m ? m.previousElementSibling : null;
           if (m && b && !m.contains(e.target) && !b.contains(e.target)) m.classList.remove('show');
         });
       });
@@ -181,6 +255,7 @@
       const store = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       if (store._settings) selectedCameraId = store._settings.cameraId || "";
       popolaFotocamere();
+      aggiornaCronologiaHome();
     };
 
     function toggleMenu(e, menuId) {
@@ -226,12 +301,23 @@
       }
     }
 
-    function cambiaVista(idVista) {
+    function apriPagina(idVista, hash) {
       document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
       if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {});
+      
+      if (idVista === 'full-history-view') caricaCronologiaCompleta();
+      if (idVista === 'revised-list-view') caricaListaRevisionati();
+
+      history.pushState({ view: idVista }, "", hash);
+      mostraVistaInterna(idVista, false);
+    }
+
+    function mostraVistaInterna(idVista, fermaCamera = true) {
+      if (fermaCamera && html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
+      }
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(idVista).classList.add('active');
-      if (location.hash !== "#" + idVista.replace('-view','')) history.pushState({view: idVista}, "", "#" + idVista.replace('-view',''));
     }
 
     function avviaScanner() {
@@ -242,34 +328,24 @@
       const config = { fps: 15, qrbox: { width: 250, height: 250 } };
       const target = selectedCameraId ? selectedCameraId : { facingMode: "environment" };
 
-      html5QrCode.start(target, config, onScanSuccess).catch((err) => {
-        console.error("Errore avvio camera:", err);
+      html5QrCode.start(target, config, onScanSuccess).catch(() => {
         html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess).catch(() => {
           document.getElementById('statusAlert').innerText = "Impossibile accedere alla fotocamera.";
         });
       });
     }
 
-    // ESTRAZIONE IDDET MIRATA (Ignora completamente idcarico)
     function estraiIddetDaUrl(testo) {
       if (!testo) return null;
-      
-      // 1. Tenta prima il parsing dell'URL standard
       try {
         const url = new URL(testo);
         const iddet = url.searchParams.get("iddet");
         if (iddet) return iddet;
-      } catch (e) {
-        // Fallimento URL integro, passiamo alla regex robusta
-      }
+      } catch (e) {}
 
-      // 2. Cerca direttamente iddet tramite Regex anche se il link è parzialmente rovinato
       const matchIddet = testo.match(/[?&]iddet=(\d+)/i);
-      if (matchIddet && matchIddet[1]) {
-        return matchIddet[1];
-      }
+      if (matchIddet && matchIddet[1]) return matchIddet[1];
 
-      // 3. Fallback stringa pura
       const matchSoloCifre = testo.match(/\b\d{5}\b/);
       return matchSoloCifre ? matchSoloCifre[0] : testo;
     }
@@ -284,6 +360,8 @@
         return; 
       }
 
+      registraCronologiaScansione(qrId);
+
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       if (db[qrId] && db[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura...";
@@ -292,6 +370,96 @@
       }
       document.getElementById('scannerStatus').innerText = "Analisi OCR in corso...";
       catturaEseguiOCR(qrId);
+    }
+
+    function registraCronologiaScansione(id) {
+      let cronologia = JSON.parse(localStorage.getItem('cronologia_scansioni') || "[]");
+      // Rimuovi se già presente per portarlo in cima
+      cronologia = cronologia.filter(item => item.id !== id);
+      cronologia.unshift({ id: id, timestamp: new Date().toLocaleString() });
+      if (cronologia.length > 50) cronologia.pop(); // Mantieni max 50 nello storico
+      localStorage.setItem('cronologia_scansioni', JSON.stringify(cronologia));
+      aggiornaCronologiaHome();
+    }
+
+    function aggiornaCronologiaHome() {
+      let cronologia = JSON.parse(localStorage.getItem('cronologia_scansioni') || "[]");
+      let listEl = document.getElementById('homeHistoryList');
+      listEl.innerHTML = '';
+
+      if (cronologia.length === 0) {
+        listEl.innerHTML = '<li style="color: #999; text-align: center; font-size: 12px; padding: 10px;">Nessuna scansione recente</li>';
+        return;
+      }
+
+      cronologia.slice(0, 10).forEach(item => {
+        let li = document.createElement('li');
+        li.className = 'history-item';
+        li.innerHTML = `<span><b>ID:</b> ${item.id}</span> <span style="font-size:11px; color:#888;">${item.timestamp}</span>`;
+        li.onclick = () => apriArticoloDaCronologia(item.id);
+        listEl.appendChild(li);
+      });
+    }
+
+    function caricaCronologiaCompleta() {
+      let cronologia = JSON.parse(localStorage.getItem('cronologia_scansioni') || "[]");
+      let container = document.getElementById('fullHistoryContainer');
+      container.innerHTML = '';
+
+      if (cronologia.length === 0) {
+        container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 30px;">Nessuna scansione in cronologia.</p>';
+        return;
+      }
+
+      cronologia.forEach(item => {
+        let row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<span><b>ID:</b> ${item.id}</span> <span style="font-size:12px; color:#666;">${item.timestamp}</span>`;
+        row.onclick = () => apriArticoloDaCronologia(item.id);
+        container.appendChild(row);
+      });
+    }
+
+    function caricaListaRevisionati() {
+      renderizzaListaRevisionati("");
+    }
+
+    function renderizzaListaRevisionati(filtro) {
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let container = document.getElementById('revisedListContainer');
+      container.innerHTML = '';
+
+      let trovati = 0;
+      for (let id in db) {
+        if (id === '_settings') continue;
+        let art = db[id];
+        if (art.revised) {
+          if (filtro && !id.toLowerCase().includes(filtro.toLowerCase()) && !art.typeCode.toLowerCase().includes(filtro.toLowerCase())) {
+            continue;
+          }
+          trovati++;
+          let row = document.createElement('div');
+          row.className = 'list-row';
+          row.innerHTML = `<div><b>ID:</b> ${id}<br><span style="font-family:monospace; color:#007bff; font-size:12px;">${art.typeCode || 'Senza codice'}</span></div> <div style="text-align:right; font-size:11px; color:#666;">Rev: ${art.revisedDate || 'N.D.'}</div>`;
+          row.onclick = () => apriArticoloDaCronologia(id);
+          container.appendChild(row);
+        }
+      }
+
+      if (trovati === 0) {
+        container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 30px;">Nessun articolo revisionato trovato.</p>';
+      }
+    }
+
+    function filtraListaRevisionati() {
+      let query = document.getElementById('searchInput').value.trim();
+      renderizzaListaRevisionati(query);
+    }
+
+    function apriArticoloDaCronologia(id) {
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let art = db[id] || {};
+      fermaScannerEApri(id, art.typeCode || "", "cronologia");
     }
 
     function fermaScannerEApri(id, code, metodo) {
@@ -339,6 +507,18 @@
       return `${day}/${month}/${year}`;
     }
 
+    function validaFormatoData(dataStr) {
+      const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+      if (!regex.test(dataStr)) return false;
+      const parti = dataStr.split('/');
+      const giorno = parseInt(parti[0], 10);
+      const mese = parseInt(parti[1], 10);
+      const anno = parseInt(parti[2], 10);
+      
+      const d = new Date(anno, mese - 1, giorno);
+      return d && d.getFullYear() === anno && d.getMonth() === mese - 1 && d.getDate() === giorno;
+    }
+
     function salvaDB(id, tipo, rev = null, note = null, dataRev = null) {
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let item = db[id] || {};
@@ -358,7 +538,7 @@
         revised: nuovoRev,
         typeCode: tipo || "",
         notes: note !== null ? note : (item.notes || ""),
-        revisedDate: nuevaData = nuovaData,
+        revisedDate: nuovaData,
         rawText: tipo || ""
       };
       db._settings = { cameraId: selectedCameraId };
@@ -374,6 +554,7 @@
     function procediManualcode() {
       let val = document.getElementById('manualInput').value.trim();
       if (val.length !== 5) { alert("Inserisci esattamente 5 cifre!"); return; }
+      registraCronologiaScansione(val);
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let codice = (db[val] && db[val].typeCode) ? db[val].typeCode : "";
       salvaDB(val, codice);
@@ -401,7 +582,8 @@
       document.getElementById('inputNotes').value = item.notes || "";
       aggiornaRev(item.revised || false, item.revisedDate || "");
 
-      cambiaVista('detail-view');
+      history.pushState({ view: 'detail-view' }, "", "#detail");
+      mostraVistaInterna('detail-view', false);
     }
 
     function abilitaModificaArticolo() {
@@ -415,12 +597,24 @@
       document.getElementById('inputEditDate').value = item.revisedDate || getDataOdiernaFormattata();
     }
 
+    function annullaModificaArticolo() {
+      const disp = document.getElementById('codeDisplayArea'), editArea = document.getElementById('articleEditArea');
+      editArea.style.display = 'none';
+      if (currentTypeCode && currentTypeCode.length === 10) {
+        disp.innerHTML = `<div class="big-value">${currentTypeCode}</div>`;
+        disp.style.display = 'block';
+      } else {
+        disp.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante</div>`;
+        disp.style.display = 'block';
+      }
+    }
+
     function confermaModificaArticolo() {
       let nuovoCodice = document.getElementById('inputEditCode').value.trim();
       let nuovaData = document.getElementById('inputEditDate').value.trim();
 
       if (nuovoCodice.length !== 10) { alert("Il codice deve essere esattamente di 10 cifre!"); return; }
-      if (!nuovaData) { alert("Inserisci una data valida!"); return; }
+      if (!validaFormatoData(nuovaData)) { alert("Data non valida! Il formato corretto è DD/MM/YYYY (es. 07/11/2026)."); return; }
 
       currentTypeCode = nuovoCodice;
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
@@ -467,13 +661,16 @@
       document.getElementById('btnTogli').style.display = rev ? 'inline-block' : 'none';
     }
 
-    function tornaAllaHome(pop = false) {
+    function tornaAllaHome(fromPop = false) {
       isProcessing = false;
       document.getElementById('statusAlert').innerText = "";
       document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
       document.getElementById('manualInput').value = '';
-      cambiaVista('home-view');
-      if (!pop && location.hash !== "#home") history.replaceState({view:'home'}, "", "#home");
+      
+      mostraVistaInterna('home-view', false);
+      if (!fromPop && location.hash !== "#home") {
+        history.pushState({ view: 'home-view' }, "", "#home");
+      }
       avviaScanner();
     }
 
@@ -504,6 +701,7 @@
       document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
       if (confirm("Eliminare tutto il database locale e le impostazioni?")) {
         localStorage.removeItem('miei_revisionati');
+        localStorage.removeItem('cronologia_scansioni');
         location.reload();
       }
     }
