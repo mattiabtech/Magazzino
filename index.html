@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  
-  <link rel="manifest" href="manifest.json">
-<!-- Icona specifica per dispositivi Apple -->
-<link rel="apple-touch-icon" href="icon.png">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Magazzino - Scanner</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
   <style>
@@ -83,8 +81,8 @@
           <h2>Magazzino - Validazione</h2>
           <button class="menu-btn" onclick="toggleMenu(event, 'dropdownMenu')">⋮</button>
           <div id="dropdownMenu" class="dropdown-menu">
-            <div class="dropdown-item" onclick="apriPagina('settings-view', '#settings')">⚙️ Impostazioni</div>
-            <div class="dropdown-item" onclick="apriPagina('revised-list-view', '#revised-list')">📋 Lista articoli revisionati</div>
+            <div class="dropdown-item" onclick="cambiaVistaConStoria('settings-view', '#settings')">⚙️ Impostazioni</div>
+            <div class="dropdown-item" onclick="cambiaVistaConStoria('revised-list-view', '#revised-list')">📋 Lista articoli revisionati</div>
             <div class="dropdown-item" onclick="esportaDati()">📥 Scarica Backup (JSON)</div>
             <label class="dropdown-item">📤 Ripristina Backup<input type="file" accept=".json" style="display:none;" onchange="importaDati(event)"></label>
             <div class="dropdown-item danger-text" onclick="eliminaDatabase()">🗑️ Elimina database</div>
@@ -107,7 +105,7 @@
         <div class="history-box">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="font-weight: bold; font-size: 13px; color: #555;">Ultime scansioni</span>
-            <span style="font-size: 12px; color: #007bff; cursor: pointer; font-weight: bold;" onclick="apriPagina('full-history-view', '#history')">Cronologia completa &rsaquo;</span>
+            <span style="font-size: 12px; color: #007bff; cursor: pointer; font-weight: bold;" onclick="cambiaVistaConStoria('full-history-view', '#history')">Cronologia completa &rsaquo;</span>
           </div>
           <ul id="homeHistoryList" class="history-list">
             <li style="color: #999; text-align: center; font-size: 12px; padding: 10px;">Nessuna scansione recente</li>
@@ -116,7 +114,7 @@
 
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v4.0</div>
+      <div class="app-version">v4.3</div>
     </div>
   </div>
 
@@ -170,7 +168,7 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v4.0</div>
+      <div class="app-version">v4.3</div>
     </div>
   </div>
 
@@ -184,11 +182,12 @@
             <h2>Cronologia Completa</h2>
           </div>
         </div>
-        <div class="list-container" id="fullHistoryContainer">
-          <!-- Popolato dinamicamente -->
-        </div>
+        
+        <button id="btnClearHistory" class="btn btn-danger btn-small" style="margin-top: 10px; margin-bottom: 5px;" onclick="eliminaTuttaLaCronologia()">🗑️ Elimina cronologia</button>
+
+        <div class="list-container" id="fullHistoryContainer"></div>
       </div>
-      <div class="app-version">v4.0</div>
+      <div class="app-version">v4.3</div>
     </div>
   </div>
 
@@ -203,11 +202,9 @@
           </div>
         </div>
         <input type="text" id="searchInput" placeholder="Cerca codice o ID..." oninput="filtraListaRevisionati()" style="margin-top: 10px;">
-        <div class="list-container" id="revisedListContainer">
-          <!-- Popolato dinamicamente -->
-        </div>
+        <div class="list-container" id="revisedListContainer"></div>
       </div>
-      <div class="app-version">v4.0</div>
+      <div class="app-version">v4.3</div>
     </div>
   </div>
 
@@ -228,7 +225,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v4.0</div>
+      <div class="app-version">v4.3</div>
     </div>
   </div>
 
@@ -236,16 +233,16 @@
     let html5QrCode = null, currentId = "", currentTypeCode = "", isProcessing = false, selectedCameraId = "";
 
     window.onload = function() {
-      // Gestione corretta della cronologia di navigazione (History API)
-      if (!location.hash || location.hash === "#home") {
+      if (!history.state || !history.state.view) {
         history.replaceState({ view: 'home-view' }, "", "#home");
       }
 
       window.onpopstate = function(event) {
         if (event.state && event.state.view) {
-          mostraVistaInterna(event.state.view, false);
+          attivaVistaSenzaStoria(event.state.view);
         } else {
-          tornaAllaHome(true);
+          attivaVistaSenzaStoria('home-view');
+          avviaScanner();
         }
       };
 
@@ -305,7 +302,7 @@
       }
     }
 
-    function apriPagina(idVista, hash) {
+    function cambiaVistaConStoria(idVista, hash) {
       document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
       if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {});
       
@@ -313,15 +310,19 @@
       if (idVista === 'revised-list-view') caricaListaRevisionati();
 
       history.pushState({ view: idVista }, "", hash);
-      mostraVistaInterna(idVista, false);
+      attivaVistaSenzaStoria(idVista);
     }
 
-    function mostraVistaInterna(idVista, fermaCamera = true) {
-      if (fermaCamera && html5QrCode && html5QrCode.isScanning) {
+    function attivaVistaSenzaStoria(idVista) {
+      if (idVista !== 'home-view' && html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(idVista).classList.add('active');
+      
+      if (idVista === 'home-view') {
+        setTimeout(avviaScanner, 100);
+      }
     }
 
     function avviaScanner() {
@@ -378,10 +379,9 @@
 
     function registraCronologiaScansione(id) {
       let cronologia = JSON.parse(localStorage.getItem('cronologia_scansioni') || "[]");
-      // Rimuovi se già presente per portarlo in cima
       cronologia = cronologia.filter(item => item.id !== id);
       cronologia.unshift({ id: id, timestamp: new Date().toLocaleString() });
-      if (cronologia.length > 50) cronologia.pop(); // Mantieni max 50 nello storico
+      if (cronologia.length > 50) cronologia.pop();
       localStorage.setItem('cronologia_scansioni', JSON.stringify(cronologia));
       aggiornaCronologiaHome();
     }
@@ -408,12 +408,16 @@
     function caricaCronologiaCompleta() {
       let cronologia = JSON.parse(localStorage.getItem('cronologia_scansioni') || "[]");
       let container = document.getElementById('fullHistoryContainer');
+      let btnClear = document.getElementById('btnClearHistory');
       container.innerHTML = '';
 
       if (cronologia.length === 0) {
         container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 30px;">Nessuna scansione in cronologia.</p>';
+        if (btnClear) btnClear.style.display = 'none';
         return;
       }
+
+      if (btnClear) btnClear.style.display = 'block';
 
       cronologia.forEach(item => {
         let row = document.createElement('div');
@@ -422,6 +426,14 @@
         row.onclick = () => apriArticoloDaCronologia(item.id);
         container.appendChild(row);
       });
+    }
+
+    function eliminaTuttaLaCronologia() {
+      if (confirm("Sei sicuro di voler cancellare l'intera cronologia delle scansioni? (I dati memorizzati negli articoli rimarranno intatti)")) {
+        localStorage.removeItem('cronologia_scansioni');
+        caricaCronologiaCompleta();
+        aggiornaCronologiaHome();
+      }
     }
 
     function caricaListaRevisionati() {
@@ -507,208 +519,4 @@
       const d = new Date();
       const day = String(d.getDate()).padStart(2, '0');
       const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-
-    function validaFormatoData(dataStr) {
-      const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-      if (!regex.test(dataStr)) return false;
-      const parti = dataStr.split('/');
-      const giorno = parseInt(parti[0], 10);
-      const mese = parseInt(parti[1], 10);
-      const anno = parseInt(parti[2], 10);
-      
-      const d = new Date(anno, mese - 1, giorno);
-      return d && d.getFullYear() === anno && d.getMonth() === mese - 1 && d.getDate() === giorno;
-    }
-
-    function salvaDB(id, tipo, rev = null, note = null, dataRev = null) {
-      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let item = db[id] || {};
-      
-      let nuovoRev = rev !== null ? rev : (item.revised || false);
-      let nuovaData = item.revisedDate || "";
-
-      if (nuovoRev && !item.revised && !dataRev) {
-        nuovaData = getDataOdiernaFormattata();
-      } else if (dataRev !== null) {
-        nuovaData = dataRev;
-      } else if (!nuovoRev) {
-        nuovaData = item.revisedDate || "";
-      }
-
-      db[id] = {
-        revised: nuovoRev,
-        typeCode: tipo || "",
-        notes: note !== null ? note : (item.notes || ""),
-        revisedDate: nuovaData,
-        rawText: tipo || ""
-      };
-      db._settings = { cameraId: selectedCameraId };
-      localStorage.setItem('miei_revisionati', JSON.stringify(db));
-    }
-
-    function riavviaErrore(msg) {
-      document.getElementById('statusAlert').innerText = msg;
-      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
-      setTimeout(() => { isProcessing = false; }, 1500);
-    }
-
-    function procediManualcode() {
-      let val = document.getElementById('manualInput').value.trim();
-      if (val.length !== 5) { alert("Inserisci esattamente 5 cifre!"); return; }
-      registraCronologiaScansione(val);
-      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let codice = (db[val] && db[val].typeCode) ? db[val].typeCode : "";
-      salvaDB(val, codice);
-      fermaScannerEApri(val, codice, "digitato a mano");
-    }
-
-    function mostraRisultato(id, codice, metodo) {
-      currentId = id; currentTypeCode = codice;
-      document.getElementById('valId').innerText = id;
-      document.getElementById('statusMethod').innerText = `Metodo: ${metodo}`;
-      
-      const disp = document.getElementById('codeDisplayArea'), editArea = document.getElementById('articleEditArea');
-      if (codice && codice.length === 10) {
-        disp.innerHTML = `<div class="big-value">${codice}</div>`;
-        disp.style.display = 'block'; editArea.style.display = 'none';
-      } else {
-        disp.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante</div>`;
-        editArea.style.display = 'block';
-        document.getElementById('inputEditCode').value = '';
-        document.getElementById('inputEditDate').value = getDataOdiernaFormattata();
-      }
-
-      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let item = db[currentId] || {};
-      document.getElementById('inputNotes').value = item.notes || "";
-      aggiornaRev(item.revised || false, item.revisedDate || "");
-
-      history.pushState({ view: 'detail-view' }, "", "#detail");
-      mostraVistaInterna('detail-view', false);
-    }
-
-    function abilitaModificaArticolo() {
-      document.getElementById('dropdownDetailMenu').classList.remove('show');
-      document.getElementById('codeDisplayArea').style.display = 'none';
-      document.getElementById('articleEditArea').style.display = 'block';
-      
-      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let item = db[currentId] || {};
-      document.getElementById('inputEditCode').value = currentTypeCode;
-      document.getElementById('inputEditDate').value = item.revisedDate || getDataOdiernaFormattata();
-    }
-
-    function annullaModificaArticolo() {
-      const disp = document.getElementById('codeDisplayArea'), editArea = document.getElementById('articleEditArea');
-      editArea.style.display = 'none';
-      if (currentTypeCode && currentTypeCode.length === 10) {
-        disp.innerHTML = `<div class="big-value">${currentTypeCode}</div>`;
-        disp.style.display = 'block';
-      } else {
-        disp.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante</div>`;
-        disp.style.display = 'block';
-      }
-    }
-
-    function confermaModificaArticolo() {
-      let nuovoCodice = document.getElementById('inputEditCode').value.trim();
-      let nuovaData = document.getElementById('inputEditDate').value.trim();
-
-      if (nuovoCodice.length !== 10) { alert("Il codice deve essere esattamente di 10 cifre!"); return; }
-      if (!validaFormatoData(nuovaData)) { alert("Data non valida! Il formato corretto è DD/MM/YYYY (es. 07/11/2026)."); return; }
-
-      currentTypeCode = nuovoCodice;
-      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let item = db[currentId] || {};
-
-      salvaDB(currentId, nuovoCodice, item.revised, item.notes, nuovaData);
-
-      document.getElementById('codeDisplayArea').innerHTML = `<div class="big-value">${nuovoCodice}</div>`;
-      document.getElementById('codeDisplayArea').style.display = 'block';
-      document.getElementById('articleEditArea').style.display = 'none';
-      
-      aggiornaRev(item.revised, nuovaData);
-      alert("Articolo modificato con successo!");
-    }
-
-    function salvaNote() {
-      if (currentId) {
-        let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-        let item = db[currentId] || {};
-        salvaDB(currentId, currentTypeCode, item.revised, document.getElementById('inputNotes').value, item.revisedDate);
-      }
-    }
-
-    function impostaRevisionato(rev) {
-      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let item = db[currentId] || {};
-      
-      salvaDB(currentId, currentTypeCode, rev, document.getElementById('inputNotes').value, item.revisedDate);
-      
-      let updatedDb = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      let updatedItem = updatedDb[currentId] || {};
-
-      aggiornaRev(rev, updatedItem.revisedDate || "");
-      alert(rev ? "Articolo revisionato." : "Revisione rimossa.");
-    }
-
-    function aggiornaRev(rev, dataRev) {
-      let htmlStatus = rev 
-        ? `<div class="badge-me">✅ Revisionato da te<br><span style="font-size:12px; font-weight:normal;">Data: ${dataRev || 'N.D.'}</span></div>` 
-        : `<div class="badge-other">⚠️ Non ancora revisionato</div>`;
-
-      document.getElementById('revisionStatus').innerHTML = htmlStatus;
-      document.getElementById('btnSegna').style.display = rev ? 'none' : 'inline-block';
-      document.getElementById('btnTogli').style.display = rev ? 'inline-block' : 'none';
-    }
-
-    function tornaAllaHome(fromPop = false) {
-      isProcessing = false;
-      document.getElementById('statusAlert').innerText = "";
-      document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
-      document.getElementById('manualInput').value = '';
-      
-      mostraVistaInterna('home-view', false);
-      if (!fromPop && location.hash !== "#home") {
-        history.pushState({ view: 'home-view' }, "", "#home");
-      }
-      avviaScanner();
-    }
-
-    function esportaDati() {
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-      const blob = new Blob([localStorage.getItem('miei_revisionati') || "{}"], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `backup_magazzino_${new Date().toISOString().slice(0,10)}.json`;
-      a.click();
-    }
-
-    function importaDati(e) {
-      const f = e.target.files[0];
-      if (!f) return;
-      const r = new FileReader();
-      r.onload = (evt) => {
-        try {
-          localStorage.setItem('miei_revisionati', JSON.stringify(JSON.parse(evt.target.result)));
-          alert("Ripristino completato!");
-          location.reload();
-        } catch { alert("File JSON non valido."); }
-      };
-      r.readAsText(f);
-    }
-
-    function eliminaDatabase() {
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-      if (confirm("Eliminare tutto il database locale e le impostazioni?")) {
-        localStorage.removeItem('miei_revisionati');
-        localStorage.removeItem('cronologia_scansioni');
-        location.reload();
-      }
-    }
-  </script>
-</body>
-</html>
+      const year = d.getFullYear
