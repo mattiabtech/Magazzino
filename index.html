@@ -24,11 +24,12 @@
     
     .btn { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; text-decoration: none; display: inline-block; margin-top: 10px; text-align: center; box-sizing: border-box; }
     .btn-green { background: #28a745; }
+    .btn-danger { background: #dc3545; }
     .btn-gray { background: #6c757d; }
     .btn-info { background: #17a2b8; }
 
     .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
-    .badge-other { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
+    .badge-other { background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     
     .test-box { 
       background: #e9ecef; 
@@ -87,7 +88,7 @@
         </div>
       </div>
 
-      <div class="app-version">v1.8</div>
+      <div class="app-version">v2.0</div>
     </div>
   </div>
 
@@ -104,18 +105,20 @@
 
           <div id="revisionStatus"></div>
 
-          <button id="revButton" class="btn btn-green" onclick="segnaRevisionato()">✔️ Segna come revisionato da me</button>
+          <button id="btnSegna" class="btn btn-green" onclick="impostaRevisionato(true)">✔️ Segna come revisionato da me</button>
+          <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
           <button class="btn btn-gray" onclick="tornaAllaHome()">⬅️ Torna alla Home / Scanner</button>
         </div>
       </div>
 
-      <div class="app-version">v1.8</div>
+      <div class="app-version">v2.0</div>
     </div>
   </div>
 
   <script>
     let html5QrCode = null;
     let currentId = "";
+    let currentTypeCode = "";
     let isProcessing = false;
 
     window.onload = function() {
@@ -155,17 +158,17 @@
 
       const qrId = estraiIddetDaUrl(decodedText);
       
-      let revisioni = {};
+      let database = {};
       try {
-        revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+        database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       } catch(e) {
-        revisioni = {};
+        database = {};
       }
       
-      // Controllo robusto in memoria locale
-      if (revisioni[qrId] && revisioni[qrId].typeCode) {
+      // Controllo se l'etichetta è già presente nel database (indipendentemente da 'revised')
+      if (database[qrId] && database[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura immediata...";
-        let storedTypeCode = revisioni[qrId].typeCode;
+        let storedTypeCode = database[qrId].typeCode;
 
         if(html5QrCode && html5QrCode.isScanning) {
           html5QrCode.stop().then(() => {
@@ -179,7 +182,7 @@
         return;
       }
 
-      // Se non è in database, esegue OCR
+      // Se non è in database, procede con la prima lettura OCR
       document.getElementById('scannerStatus').innerText = "QR Rilevato! Analisi OCR in corso...";
       catturaFotogrammaEseguiOCR(qrId);
     }
@@ -227,7 +230,6 @@
         return;
       }
 
-      // Togliamo le prime 5 cifre (iddet) e prendiamo le successive 10 cifre
       const stringaSenzaId = cleanedText.substring(5);
 
       if (stringaSenzaId.length < 10) {
@@ -235,10 +237,8 @@
         return;
       }
 
-      // Isola esattamente le 10 cifre del tipo oggetto
       const dieciCifreTipo = stringaSenzaId.substring(0, 10);
 
-      // Regole su prefisso (0445 o 0470) e relativi sotto-codici
       const prefisso4 = dieciCifreTipo.substring(0, 4);
       const subCodice3 = dieciCifreTipo.substring(4, 7);
 
@@ -258,6 +258,9 @@
         return;
       }
 
+      // MEMORIZZA AUTOMATICAMENTE IL CODICE IN MEMORIA LOCALE (revised inizialmente false)
+      memorizzaCodice(qrId, dieciCifreTipo);
+
       if(html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(() => {
           mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
@@ -267,6 +270,37 @@
       } else {
         mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
       }
+    }
+
+    // Salva o aggiorna i dati mantenendo intatto lo stato di 'revised' se già esistente
+    function memorizzaCodice(id, codiceTipo, statoRevisione = null) {
+      let database = {};
+      try {
+        database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      } catch(e) {
+        database = {};
+      }
+
+      let isRevised = false;
+      if (statoRevisione !== null) {
+        isRevised = statoRevisione;
+      } else if (database[id] && typeof database[id].revised === 'boolean') {
+        isRevised = database[id].revised;
+      }
+      
+      database[id] = {
+        revised: isRevised,
+        typeCode: codiceTipo,
+        rawText: codiceTipo
+      };
+      
+      localStorage.setItem('miei_revisionati', JSON.stringify(database));
+    }
+
+    function impostaRevisionato(stato) {
+      memorizzaCodice(currentId, currentTypeCode, stato);
+      aggiornaInterfacciaRevisione(stato);
+      alert(stato ? "Articolo segnato come revisionato da te." : "Articolo rimosso dai tuoi revisionati.");
     }
 
     function riavviaPerErrore(messaggio) {
@@ -299,6 +333,8 @@
         azioneStop = html5QrCode.stop().catch(() => {});
       }
       
+      memorizzaCodice(val, "0445000000");
+
       azioneStop.then(() => {
         mostraRisultato(val, "0445000000", "manuale", 100);
       });
@@ -306,6 +342,7 @@
 
     function mostraRisultato(qrId, codiceTipo, statoOcr, confidenza) {
       currentId = qrId;
+      currentTypeCode = codiceTipo;
 
       const logTesto = 
 `QR: ${qrId} riconosciuto
@@ -319,23 +356,16 @@ codice ${codiceTipo}`;
 
       document.getElementById('testLogOutput').innerText = logTesto;
 
-      let revisioni = {};
+      // Legge lo stato di revisione corrente
+      let database = {};
       try {
-        revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+        database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       } catch(e) {
-        revisioni = {};
+        database = {};
       }
 
-      const statusDiv = document.getElementById('revisionStatus');
-      const revButton = document.getElementById('revButton');
-
-      if (revisioni[currentId] && revisioni[currentId].revised) {
-        statusDiv.innerHTML = `<div class="badge-me">✅ Questo articolo è stato revisionato da TE.</div>`;
-        revButton.style.display = 'none';
-      } else {
-        statusDiv.innerHTML = `<div class="badge-other">⚠️ Non ancora revisionato da te.</div>`;
-        revButton.style.display = 'inline-block';
-      }
+      const isRevised = database[currentId] ? database[currentId].revised : false;
+      aggiornaInterfacciaRevisione(isRevised);
 
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('detail-view').classList.add('active');
@@ -345,29 +375,20 @@ codice ${codiceTipo}`;
       }
     }
 
-    function segnaRevisionato() {
-      let revisioni = {};
-      try {
-        revisioni = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      } catch(e) {
-        revisioni = {};
-      }
-      
-      const logLines = document.getElementById('testLogOutput').innerText.split('\n');
-      const ultimaLinea = logLines[logLines.length - 1] || "";
-      const codiceSalvato = ultimaLinea.replace("codice ", "").trim();
+    function aggiornaInterfacciaRevisione(isRevised) {
+      const statusDiv = document.getElementById('revisionStatus');
+      const btnSegna = document.getElementById('btnSegna');
+      const btnTogli = document.getElementById('btnTogli');
 
-      // Salva correttamente l'oggetto strutturato con il codice associato
-      revisioni[currentId] = {
-        revised: true,
-        typeCode: codiceSalvato,
-        rawText: codiceSalvato
-      };
-      
-      localStorage.setItem('miei_revisionati', JSON.stringify(revisioni));
-      
-      alert("Salvato! Articolo segnato come revisionato da te.");
-      mostraRisultato(currentId, codiceSalvato, "memorizzato", 100);
+      if (isRevised) {
+        statusDiv.innerHTML = `<div class="badge-me">✅ Revisionato da te</div>`;
+        btnSegna.style.display = 'none';
+        btnTogli.style.display = 'inline-block';
+      } else {
+        statusDiv.innerHTML = `<div class="badge-other">⚠️ Non ancora revisionato da te</div>`;
+        btnSegna.style.display = 'inline-block';
+        btnTogli.style.display = 'none';
+      }
     }
 
     function tornaAllaHome(fromPopState = false) {
