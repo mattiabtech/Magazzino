@@ -30,7 +30,6 @@
     .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     .badge-other { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     
-    /* Box pulito per il log di testing */
     .test-box { 
       background: #e9ecef; 
       padding: 15px; 
@@ -88,7 +87,7 @@
         </div>
       </div>
 
-      <div class="app-version">v1.6</div>
+      <div class="app-version">v1.7</div>
     </div>
   </div>
 
@@ -99,7 +98,6 @@
         <div class="card card-center" style="margin-top: 10px;">
           <h2>Scheda Articolo Convalidata</h2>
           
-          <!-- Box Log Ordinato -->
           <div class="test-box" id="testLogOutput">
             Caricamento log...
           </div>
@@ -111,12 +109,12 @@
         </div>
       </div>
 
-      <div class="app-version">v1.6</div>
+      <div class="app-version">v1.7</div>
     </div>
   </div>
 
   <script>
-    let html5QrCode;
+    let html5QrCode = null;
     let currentId = "";
     let isProcessing = false;
 
@@ -136,13 +134,18 @@
     function startScanner() {
       isProcessing = false;
       document.getElementById('statusAlert').innerText = "";
-      html5QrCode = new Html5Qrcode("reader");
+      
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+      
       html5QrCode.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
         onScanSuccess
       ).catch((err) => {
         console.error("Errore avvio fotocamera", err);
+        document.getElementById('statusAlert').innerText = "Errore fotocamera. Controlla i permessi.";
       });
     }
 
@@ -159,10 +162,9 @@
         revisioni = {};
       }
       
-      // SE GIÀ IN DATABASE: Salta OCR e usa i dati memorizzati
+      // Se già in database, salta OCR
       if (revisioni[qrId] && revisioni[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura immediata...";
-        
         let storedTypeCode = revisioni[qrId].typeCode;
 
         if(html5QrCode && html5QrCode.isScanning) {
@@ -177,7 +179,7 @@
         return;
       }
 
-      // SE NON È IN DB: Esegue OCR
+      // Se non è in database, esegue OCR
       document.getElementById('scannerStatus').innerText = "QR Rilevato! Analisi OCR in corso...";
       catturaFotogrammaEseguiOCR(qrId);
     }
@@ -214,21 +216,21 @@
       let cleanedText = rawOcrText.replace(/\D/g, '');
 
       if (cleanedText.length < 5) {
-        riavviaPerErrore("OCR non nitido (ID non trovato). Riscan in corso...");
+        riavviaPerErrore("OCR non nitido (ID non trovato). Riprovo...");
         return;
       }
 
       const stringId = cleanedText.substring(0, 5);
 
       if (stringId !== qrId) {
-        riavviaPerErrore(`ID non corrispondenti! QR: ${qrId} vs Testo: ${stringId}. Riscan...`);
+        riavviaPerErrore(`ID non corrispondenti! QR: ${qrId} vs Testo: ${stringId}`);
         return;
       }
 
       const restoStringa = cleanedText.substring(5);
 
       if (restoStringa.length !== 10) {
-        riavviaPerErrore(`La parte dopo l'ID deve essere di 10 cifre (rilevate: ${restoStringa.length}). Riscan...`;
+        riavviaPerErrore(`La parte dopo l'ID deve essere di 10 cifre (rilevate: ${restoStringa.length})`);
         return;
       }
 
@@ -247,17 +249,21 @@
       }
 
       if (!codiceValido) {
-        riavviaPerErrore(`Regola codice tipo fallita (${prefisso4}-${subCodice3}). Riscan...`);
+        riavviaPerErrore(`Regola codice tipo fallita (${prefisso4}-${subCodice3})`);
         return;
       }
 
       const codiceCompleto15 = qrId + restoStringa;
 
-      html5QrCode.stop().then(() => {
+      if(html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+          mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
+        }).catch(() => {
+          mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
+        });
+      } else {
         mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
-      }).catch(() => {
-        mostraRisultato(qrId, codiceCompleto15, "scansionato", Math.round(confidence));
-      });
+      }
     }
 
     function riavviaPerErrore(messaggio) {
@@ -265,7 +271,7 @@
       document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
       setTimeout(() => {
         isProcessing = false;
-      }, 1000);
+      }, 1500);
     }
 
     function estraiIddetDaUrl(testo) {
@@ -284,17 +290,20 @@
         alert("Inserisci un codice valido!");
         return;
       }
+      
+      let azioneStop = Promise.resolve();
       if(html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => mostraRisultato(val, val + " (Manuale)", "manuale", 100)).catch(() => mostraRisultato(val, val + " (Manuale)", "manuale", 100));
-      } else {
-        mostraRisultato(val, val + " (Manuale)", "manuale", 100);
+        azioneStop = html5QrCode.stop().catch(() => {});
       }
+      
+      azioneStop.then(() => {
+        mostraRisultato(val, val + " (Manuale)", "manuale", 100);
+      });
     }
 
     function mostraRisultato(qrId, codiceCompleto, statoOcr, confidenza) {
       currentId = qrId;
 
-      // Genera il log ordinato richiesto
       const logTesto = 
 `QR: ${qrId} riconosciuto
 OCR: ${statoOcr} / ${codiceCompleto}
@@ -305,8 +314,6 @@ risultato finale
 id: ${qrId}
 codice ${codiceCompleto}`;
 
-      document.getElementById('testLogOutputinnerText' in document.createElement('div') ? 'innerText' : 'textContent') = logTesto;
-      // Assegnazione sicura del testo formattato
       document.getElementById('testLogOutput').innerText = logTesto;
 
       let revisioni = {};
@@ -343,7 +350,6 @@ codice ${codiceCompleto}`;
         revisioni = {};
       }
       
-      // Estrae il codice completo attualmente mostrato nel log
       const logLines = document.getElementById('testLogOutput').innerText.split('\n');
       const ultimaLinea = logLines[logLines.length - 1] || "";
       const codiceSalvato = ultimaLinea.replace("codice ", "").trim();
@@ -357,7 +363,6 @@ codice ${codiceCompleto}`;
       localStorage.setItem('miei_revisionati', JSON.stringify(revisioni));
       
       alert("Salvato! Articolo segnato come revisionato da te.");
-      // Ricarica la vista mantenendo il log pulito
       mostraRisultato(currentId, codiceSalvato, "memorizzato", 100);
     }
 
@@ -384,10 +389,14 @@ codice ${codiceCompleto}`;
       const a = document.createElement('a');
       a.href = url;
       a.download = `backup_revisioni_${new Date().toISOString().slice(0,10)}.json`;
+      
+      // Metodo robusto compatibile con tutti i browser mobili e desktop
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
     }
 
     function importaDati(event) {
@@ -401,7 +410,7 @@ codice ${codiceCompleto}`;
           alert("Backup ripristinato con successo!");
           event.target.value = '';
         } catch (err) {
-          alert("Errore nella lettura del file.");
+          alert("Errore nella lettura del file JSON.");
         }
       };
       reader.readAsText(file);
