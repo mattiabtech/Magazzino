@@ -104,7 +104,7 @@
         <canvas id="snapshotCanvas"></canvas>
       </div>
 
-      <div class="app-version">v2.9</div>
+      <div class="app-version">v3.0</div>
     </div>
   </div>
 
@@ -155,7 +155,7 @@
         </div>
       </div>
 
-      <div class="app-version">v2.9</div>
+      <div class="app-version">v3.0</div>
     </div>
   </div>
 
@@ -175,11 +175,11 @@
           <select id="cameraSelect" onchange="salvaSelezioneCamera()">
             <option value="">Rilevamento fotocamere in corso...</option>
           </select>
-          <p style="font-size: 12px; color: #666; margin-top: 6px;">Seleziona quale fotocamera fisica utilizzare (Camera 0 consigliata).</p>
+          <p style="font-size: 12px; color: #666; margin-top: 6px;">Seleziona quale fotocamera fisica utilizzare.</p>
         </div>
       </div>
 
-      <div class="app-version">v2.9</div>
+      <div class="app-version">v3.0</div>
     </div>
   </div>
 
@@ -241,12 +241,11 @@
           devices.forEach((device, index) => {
             const option = document.createElement('option');
             option.value = device.id;
-            // Etichetta pulita con ID camera progressivo (Camera 0, Camera 1, ecc.)
-            option.text = `Camera ${index}: ${device.label || 'Fotocamera ' + index}`;
+            option.text = `Camera ${index}: ${device.label || 'device_' + index}`;
             selectEl.appendChild(option);
           });
 
-          // Se non è stata salvata una camera o quella salvata non esiste più, usa la Camera 0 (la prima)
+          // Se non è stata salvata una camera o quella salvata non esiste, seleziona la Camera 0
           if (!selectedCameraId || !devices.some(d => d.id === selectedCameraId)) {
             selectedCameraId = devices[0].id;
           }
@@ -257,7 +256,7 @@
 
         startScanner();
       }).catch(err => {
-        console.warn("Impossibile elencare le fotocamere, uso fallback standard:", err);
+        console.warn("Impossibile elencare le fotocamere:", err);
         const selectEl = document.getElementById('cameraSelect');
         selectEl.innerHTML = '<option value="environment">Camera Principale Posteriore</option>';
         startScanner();
@@ -267,11 +266,16 @@
     function salvaSelezioneCamera() {
       selectedCameraId = document.getElementById('cameraSelect').value;
       salvaInDatabaseSettings();
-      // Riavvia lo scanner con la nuova camera scelta
+      
+      // Riavvia subito lo scanner con la nuova camera selezionata
       if (html5QrCode) {
-        html5QrCode.stop().catch(() => {}).finally(() => {
+        if (html5QrCode.isScanning) {
+          html5QrCode.stop().catch(() => {}).finally(() => {
+            startScanner();
+          });
+        } else {
           startScanner();
-        });
+        }
       }
     }
 
@@ -323,7 +327,7 @@
         }
       };
 
-      // Configurazione della sorgente video basata sull'ID specifico della camera scelta
+      // Usa rigorosamente l'ID della camera scelto dall'utente (o fallback sulla camera 0 se disponibile)
       let cameraConstraint = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : { facingMode: "environment" };
 
       html5QrCode.start(
@@ -331,7 +335,7 @@
         config,
         onScanSuccess
       ).catch((err) => {
-        console.warn("Avvio con ID specifico fallito, ripiego su environment generico...", err);
+        console.warn("Avvio con ID specifico fallito, provo fallback generico...", err);
         html5QrCode.start(
           { facingMode: "environment" },
           { fps: 15, qrbox: { width: 250, height: 250 } },
