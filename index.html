@@ -37,28 +37,23 @@
     .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 15px; text-align: left; }
     .card-center { text-align: center; }
     
-    input[type="text"], select { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; background: white; }
+    input[type="text"], select, textarea { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; background: white; font-family: inherit; }
     
+    .big-box { background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px; margin-bottom: 15px; text-align: center; }
+    .big-label { font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
+    .big-value { font-size: 26px; font-weight: bold; font-family: monospace; color: #007bff; }
+    
+    .status-small { font-size: 11px; color: #888; margin-bottom: 10px; text-align: left; text-transform: uppercase; letter-spacing: 0.5px; }
+
     .btn { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; text-decoration: none; display: inline-block; margin-top: 10px; text-align: center; box-sizing: border-box; }
     .btn-green { background: #28a745; }
     .btn-danger { background: #dc3545; }
     .btn-gray { background: #6c757d; }
     .btn-info { background: #17a2b8; }
+    .btn-small { padding: 8px 15px; font-size: 14px; margin-top: 5px; }
 
     .badge-me { background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
     .badge-other { background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-weight: bold; margin: 15px 0; text-align: center; }
-    
-    .test-box { 
-      background: #e9ecef; 
-      padding: 15px; 
-      border-radius: 8px; 
-      font-family: monospace; 
-      font-size: 13px; 
-      text-align: left; 
-      margin: 15px 0; 
-      white-space: pre-line; 
-      line-height: 1.5;
-    }
     
     .status-msg { margin: 10px 0; font-size: 14px; color: #d9534f; font-weight: bold; }
     
@@ -109,7 +104,7 @@
         <canvas id="snapshotCanvas"></canvas>
       </div>
 
-      <div class="app-version">v2.7</div>
+      <div class="app-version">v2.9</div>
     </div>
   </div>
 
@@ -122,21 +117,45 @@
             <button class="back-btn" onclick="tornaAllaHome()">‹</button>
             <h2>Scheda Articolo</h2>
           </div>
+          <button class="menu-btn" onclick="toggleDetailMenu(event)">⋮</button>
+          
+          <div id="dropdownDetailMenu" class="dropdown-menu">
+            <div class="dropdown-item" onclick="abilitaModificaCodice()">✏️ Modifica codice articolo</div>
+          </div>
         </div>
         
-        <div class="card card-center" style="margin-top: 10px;">
-          <div class="test-box" id="testLogOutput">
-            Caricamento log...
+        <div class="card" style="margin-top: 10px;">
+          <div id="statusMethod" class="status-small">Metodo: -</div>
+
+          <div class="big-box">
+            <div class="big-label">ID Articolo</div>
+            <div class="big-value" id="valId">-----</div>
           </div>
 
-          <div id="revisionStatus"></div>
+          <div class="big-box">
+            <div class="big-label">Codice Articolo (10 cifre)</div>
+            <div id="codeDisplayArea">
+              <div class="big-value" id="valCode">----------</div>
+            </div>
+            <div id="codeEditArea" style="display: none; margin-top: 10px;">
+              <input type="text" id="inputManualCode" maxlength="10" placeholder="Es. 0445010538" style="text-align: center; font-family: monospace; font-size: 18px;">
+              <button class="btn btn-green btn-small" onclick="confermaCodiceManuale()">Conferma Codice</button>
+            </div>
+          </div>
+
+          <div style="margin-top: 15px;">
+            <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Note articolo:</label>
+            <textarea id="inputNotes" rows="3" placeholder="Scrivi qui eventuali note..." oninput="salvaNote()"></textarea>
+          </div>
+
+          <div id="revisionStatus" style="margin-top: 10px;"></div>
 
           <button id="btnSegna" class="btn btn-green" onclick="impostaRevisionato(true)">✔️ Segna come revisionato da me</button>
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
 
-      <div class="app-version">v2.7</div>
+      <div class="app-version">v2.9</div>
     </div>
   </div>
 
@@ -154,14 +173,13 @@
         <div class="card" style="margin-top: 10px;">
           <label style="font-weight: bold; display: block; margin-bottom: 8px;">Fotocamera Predefinita:</label>
           <select id="cameraSelect" onchange="salvaSelezioneCamera()">
-            <option value="environment">Posteriore Standard (Consigliata)</option>
-            <option value="user">Anteriore (Frontale)</option>
+            <option value="">Rilevamento fotocamere in corso...</option>
           </select>
-          <p style="font-size: 12px; color: #666; margin-top: 6px;">Seleziona quale fotocamera utilizzare per la scansione.</p>
+          <p style="font-size: 12px; color: #666; margin-top: 6px;">Seleziona quale fotocamera fisica utilizzare (Camera 0 consigliata).</p>
         </div>
       </div>
 
-      <div class="app-version">v2.7</div>
+      <div class="app-version">v2.9</div>
     </div>
   </div>
 
@@ -170,7 +188,7 @@
     let currentId = "";
     let currentTypeCode = "";
     let isProcessing = false;
-    let selectedCameraMode = "environment";
+    let selectedCameraId = "";
 
     window.onload = function() {
       history.replaceState({ view: 'home' }, "", "#home");
@@ -180,15 +198,21 @@
       };
 
       document.addEventListener('click', function(e) {
-        const menu = document.getElementById('dropdownMenu');
-        const btn = document.querySelector('.menu-btn');
-        if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
-          menu.classList.remove('show');
+        const menuHome = document.getElementById('dropdownMenu');
+        const btnHome = document.querySelector('#home-view .menu-btn');
+        if (menuHome && btnHome && !menuHome.contains(e.target) && !btnHome.contains(e.target)) {
+          menuHome.classList.remove('show');
+        }
+
+        const menuDetail = document.getElementById('dropdownDetailMenu');
+        const btnDetail = document.querySelector('#detail-view .menu-btn');
+        if (menuDetail && btnDetail && !menuDetail.contains(e.target) && !btnDetail.contains(e.target)) {
+          menuDetail.classList.remove('show');
         }
       });
 
       caricaImpostazioniSalvate();
-      startScanner();
+      popolaElencoFotocamere();
     };
 
     function toggleMenu(e) {
@@ -196,18 +220,59 @@
       document.getElementById('dropdownMenu').classList.toggle('show');
     }
 
+    function toggleDetailMenu(e) {
+      e.stopPropagation();
+      document.getElementById('dropdownDetailMenu').classList.toggle('show');
+    }
+
     function caricaImpostazioniSalvate() {
       let store = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      if (store._settings && store._settings.cameraMode) {
-        selectedCameraMode = store._settings.cameraMode;
-        const selectEl = document.getElementById('cameraSelect');
-        if (selectEl) selectEl.value = selectedCameraMode;
+      if (store._settings && store._settings.cameraId) {
+        selectedCameraId = store._settings.cameraId;
       }
     }
 
+    function popolaElencoFotocamere() {
+      Html5Qrcode.getCameras().then(devices => {
+        const selectEl = document.getElementById('cameraSelect');
+        selectEl.innerHTML = '';
+
+        if (devices && devices.length > 0) {
+          devices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.id;
+            // Etichetta pulita con ID camera progressivo (Camera 0, Camera 1, ecc.)
+            option.text = `Camera ${index}: ${device.label || 'Fotocamera ' + index}`;
+            selectEl.appendChild(option);
+          });
+
+          // Se non è stata salvata una camera o quella salvata non esiste più, usa la Camera 0 (la prima)
+          if (!selectedCameraId || !devices.some(d => d.id === selectedCameraId)) {
+            selectedCameraId = devices[0].id;
+          }
+          selectEl.value = selectedCameraId;
+        } else {
+          selectEl.innerHTML = '<option value="">Nessuna fotocamera rilevata</option>';
+        }
+
+        startScanner();
+      }).catch(err => {
+        console.warn("Impossibile elencare le fotocamere, uso fallback standard:", err);
+        const selectEl = document.getElementById('cameraSelect');
+        selectEl.innerHTML = '<option value="environment">Camera Principale Posteriore</option>';
+        startScanner();
+      });
+    }
+
     function salvaSelezioneCamera() {
-      selectedCameraMode = document.getElementById('cameraSelect').value;
+      selectedCameraId = document.getElementById('cameraSelect').value;
       salvaInDatabaseSettings();
+      // Riavvia lo scanner con la nuova camera scelta
+      if (html5QrCode) {
+        html5QrCode.stop().catch(() => {}).finally(() => {
+          startScanner();
+        });
+      }
     }
 
     function salvaInDatabaseSettings() {
@@ -219,7 +284,7 @@
       }
 
       database._settings = {
-        cameraMode: selectedCameraMode
+        cameraId: selectedCameraId
       };
 
       localStorage.setItem('miei_revisionati', JSON.stringify(database));
@@ -253,20 +318,22 @@
         qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0,
         videoConstraints: {
-          facingMode: selectedCameraMode,
           focusMode: "continuous",
           advanced: [{ focusMode: "continuous" }]
         }
       };
 
+      // Configurazione della sorgente video basata sull'ID specifico della camera scelta
+      let cameraConstraint = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : { facingMode: "environment" };
+
       html5QrCode.start(
-        { facingMode: selectedCameraMode },
+        cameraConstraint,
         config,
         onScanSuccess
       ).catch((err) => {
-        console.warn("Avvio avanzato fallito, provo avvio standard...", err);
+        console.warn("Avvio con ID specifico fallito, ripiego su environment generico...", err);
         html5QrCode.start(
-          { facingMode: selectedCameraMode },
+          { facingMode: "environment" },
           { fps: 15, qrbox: { width: 250, height: 250 } },
           onScanSuccess
         ).catch((err2) => {
@@ -300,12 +367,12 @@
 
         if(html5QrCode && html5QrCode.isScanning) {
           html5QrCode.stop().then(() => {
-            mostraRisultato(qrId, storedTypeCode, "memorizzato", 100);
+            mostraRisultato(qrId, storedTypeCode, "memorizzato");
           }).catch(() => {
-            mostraRisultato(qrId, storedTypeCode, "memorizzato", 100);
+            mostraRisultato(qrId, storedTypeCode, "memorizzato");
           });
         } else {
-          mostraRisultato(qrId, storedTypeCode, "memorizzato", 100);
+          mostraRisultato(qrId, storedTypeCode, "memorizzato");
         }
         return;
       }
@@ -334,15 +401,15 @@
         dataURL,
         'eng',
         { logger: m => console.log(m) }
-      ).then(({ data: { text, confidence } }) => {
-        validaEProcedi(qrId, text, confidence);
+      ).then(({ data: { text } }) => {
+        validaEProcedi(qrId, text);
       }).catch(err => {
         console.error("Errore OCR:", err);
         riavviaPerErrore("Errore lettura OCR, nuovo tentativo...");
       });
     }
 
-    function validaEProcedi(qrId, rawOcrText, confidence) {
+    function validaEProcedi(qrId, rawOcrText) {
       let cleanedText = rawOcrText.replace(/\D/g, '');
 
       if (cleanedText.length < 10) {
@@ -385,20 +452,20 @@
         return;
       }
 
-      memorizzaCodice(qrId, dieciCifreTipo);
+      memorizzaDatiArticolo(qrId, dieciCifreTipo);
 
       if(html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(() => {
-          mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
+          mostraRisultato(qrId, dieciCifreTipo, "scannerizzato");
         }).catch(() => {
-          mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
+          mostraRisultato(qrId, dieciCifreTipo, "scannerizzato");
         });
       } else {
-        mostraRisultato(qrId, dieciCifreTipo, "scansionato", Math.round(confidence));
+        mostraRisultato(qrId, dieciCifreTipo, "scannerizzato");
       }
     }
 
-    function memorizzaCodice(id, codiceTipo, statoRevisione = null) {
+    function memorizzaDatiArticolo(id, codiceTipo, statoRevisione = null, noteTesto = null) {
       let database = {};
       try {
         database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
@@ -406,32 +473,44 @@
         database = {};
       }
 
-      let isRevised = false;
+      let existing = database[id] || {};
+      
+      let isRevised = existing.revised || false;
       if (statoRevisione !== null) {
         isRevised = statoRevisione;
-      } else if (database[id] && typeof database[id].revised === 'boolean') {
-        isRevised = database[id].revised;
+      }
+
+      let noteCorrenti = existing.notes || "";
+      if (noteTesto !== null) {
+        noteCorrenti = noteTesto;
       }
       
       database[id] = {
         revised: isRevised,
-        typeCode: codiceTipo,
-        rawText: codiceTipo
+        typeCode: codiceTipo || "",
+        notes: noteCorrenti,
+        rawText: codiceTipo || ""
       };
       
       if (!database._settings) {
-        database._settings = { cameraMode: selectedCameraMode };
+        database._settings = { cameraId: selectedCameraId };
       } else {
-        database._settings.cameraMode = selectedCameraMode;
+        database._settings.cameraId = selectedCameraId;
       }
 
       localStorage.setItem('miei_revisionati', JSON.stringify(database));
     }
 
     function impostaRevisionato(stato) {
-      memorizzaCodice(currentId, currentTypeCode, stato);
+      memorizzaDatiArticolo(currentId, currentTypeCode, stato, document.getElementById('inputNotes').value);
       aggiornaInterfacciaRevisione(stato);
       alert(stato ? "Articolo segnato come revisionato da te." : "Articolo rimosso dai tuoi revisionati.");
+    }
+
+    function salvaNote() {
+      if (!currentId) return;
+      const noteTxt = document.getElementById('inputNotes').value;
+      memorizzaDatiArticolo(currentId, currentTypeCode, null, noteTxt);
     }
 
     function riavviaPerErrore(messaggio) {
@@ -464,7 +543,6 @@
         azioneStop = html5QrCode.stop().catch(() => {});
       }
       
-      // Se già memorizzato in precedenza, usa quello, altrimenti assegna il formato standard 0445 + id
       let database = {};
       try {
         database = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
@@ -472,33 +550,37 @@
         database = {};
       }
 
-      let codiceFinale = "0445010" + val.slice(-3); // Default formattato coerente con le regole
+      let codiceEsistente = "";
       if (database[val] && database[val].typeCode) {
-        codiceFinale = database[val].typeCode;
+        codiceEsistente = database[val].typeCode;
       }
 
-      memorizzaCodice(val, codiceFinale);
+      memorizzaDatiArticolo(val, codiceEsistente);
 
       azioneStop.then(() => {
-        mostraRisultato(val, codiceFinale, "manuale", 100);
+        mostraRisultato(val, codiceEsistente, "digitato a mano");
       });
     }
 
-    function mostraRisultato(qrId, codiceTipo, statoOcr, confidenza) {
+    function mostraRisultato(qrId, codiceTipo, metodoTrovato) {
       currentId = qrId;
       currentTypeCode = codiceTipo;
 
-      const logTesto = 
-`QR: ${qrId} riconosciuto
-OCR: ${statoOcr} / ${codiceTipo}
-probabilità (${confidenza}% ${statoOcr === 'memorizzato' ? 'se memorizzato' : ''})
+      document.getElementById('valId').innerText = qrId;
+      document.getElementById('statusMethod').innerText = `Metodo ritrovamento: ${metodoTrovato}`;
 
-risultato finale
+      const codeDisplay = document.getElementById('codeDisplayArea');
+      const codeEdit = document.getElementById('codeEditArea');
 
-id: ${qrId}
-codice ${codiceTipo}`;
-
-      document.getElementById('testLogOutput').innerText = logTesto;
+      if (codiceTipo && codiceTipo.length === 10) {
+        codeDisplay.innerHTML = `<div class="big-value" id="valCode">${codiceTipo}</div>`;
+        codeDisplay.style.display = 'block';
+        codeEdit.style.display = 'none';
+      } else {
+        codeDisplay.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante o non associato</div>`;
+        codeEdit.style.display = 'block';
+        document.getElementById('inputManualCode').value = '';
+      }
 
       let database = {};
       try {
@@ -507,8 +589,9 @@ codice ${codiceTipo}`;
         database = {};
       }
 
-      const isRevised = database[currentId] ? database[currentId].revised : false;
-      aggiornaInterfacciaRevisione(isRevised);
+      const artData = database[currentId] || {};
+      document.getElementById('inputNotes').value = artData.notes || "";
+      aggiornaInterfacciaRevisione(artData.revised || false);
 
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('settings-view').classList.remove('active');
@@ -517,6 +600,32 @@ codice ${codiceTipo}`;
       if (location.hash !== "#detail") {
         history.pushState({ view: 'detail' }, "", "#detail");
       }
+    }
+
+    function abilitaModificaCodice() {
+      document.getElementById('dropdownDetailMenu').classList.remove('show');
+      document.getElementById('codeDisplayArea').style.display = 'none';
+      const editArea = document.getElementById('codeEditArea');
+      editArea.style.display = 'block';
+      document.getElementById('inputManualCode').value = currentTypeCode;
+    }
+
+    function confermaCodiceManuale() {
+      const nuovoCodice = document.getElementById('inputManualCode').value.trim();
+      if (nuovoCodice.length !== 10) {
+        alert("Il codice deve essere esattamente di 10 cifre!");
+        return;
+      }
+
+      currentTypeCode = nuovoCodice;
+      memorizzaDatiArticolo(currentId, nuovoCodice);
+
+      const codeDisplay = document.getElementById('codeDisplayArea');
+      codeDisplay.innerHTML = `<div class="big-value" id="valCode">${nuovoCodice}</div>`;
+      codeDisplay.style.display = 'block';
+      document.getElementById('codeEditArea').style.display = 'none';
+
+      alert("Codice aggiornato e confermato con successo!");
     }
 
     function aggiornaInterfacciaRevisione(isRevised) {
@@ -581,6 +690,7 @@ codice ${codiceTipo}`;
           caricaImpostazioniSalvate();
           alert("Backup ed impostazioni ripristinati con successo!");
           event.target.value = '';
+          popolaElencoFotocamere();
           tornaAllaHome();
         } catch (err) {
           alert("Errore nella lettura del file JSON.");
