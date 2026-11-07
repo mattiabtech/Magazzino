@@ -88,7 +88,7 @@
         </div>
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v3.5</div>
+      <div class="app-version">v3.9</div>
     </div>
   </div>
 
@@ -103,7 +103,7 @@
           </div>
           <button class="menu-btn" onclick="toggleMenu(event, 'dropdownDetailMenu')">⋮</button>
           <div id="dropdownDetailMenu" class="dropdown-menu">
-            <div class="dropdown-item" onclick="abilitaModificaCodice()">✏️ Modifica codice articolo</div>
+            <div class="dropdown-item" onclick="abilitaModificaArticolo()">✏️ Modifica articolo</div>
           </div>
         </div>
         
@@ -113,24 +113,33 @@
             <div class="big-label">ID Articolo</div>
             <div class="big-value" id="valId">-----</div>
           </div>
+          
           <div class="big-box">
             <div class="big-label">Codice Articolo (10 cifre)</div>
             <div id="codeDisplayArea"><div class="big-value" id="valCode">----------</div></div>
-            <div id="codeEditArea" style="display: none; margin-top: 10px;">
-              <input type="text" id="inputManualCode" maxlength="10" placeholder="Es. 0445010538" style="text-align: center; font-family: monospace; font-size: 18px;">
-              <button class="btn btn-green btn-small" onclick="confermaCodiceManuale()">Conferma Codice</button>
+            
+            <div id="articleEditArea" style="display: none; margin-top: 10px; text-align: left;">
+              <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 3px;">Codice (10 cifre):</label>
+              <input type="text" id="inputEditCode" maxlength="10" placeholder="Es. 0445010538" style="text-align: center; font-family: monospace;">
+              
+              <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 3px; margin-top: 8px;">Data Revisione (DD/MM/YYYY):</label>
+              <input type="text" id="inputEditDate" placeholder="Es. 07/11/2026" style="text-align: center;">
+
+              <button class="btn btn-green btn-small" onclick="confermaModificaArticolo()">Conferma Modifiche</button>
             </div>
           </div>
+
           <div style="margin-top: 15px;">
             <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Note articolo:</label>
             <textarea id="inputNotes" rows="3" placeholder="Scrivi qui eventuali note..." oninput="salvaNote()"></textarea>
           </div>
+          
           <div id="revisionStatus" style="margin-top: 10px;"></div>
           <button id="btnSegna" class="btn btn-green" onclick="impostaRevisionato(true)">✔️ Segna come revisionato da me</button>
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v3.5</div>
+      <div class="app-version">v3.9</div>
     </div>
   </div>
 
@@ -151,7 +160,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v3.5</div>
+      <div class="app-version">v3.9</div>
     </div>
   </div>
 
@@ -231,23 +240,49 @@
       if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
 
       const config = { fps: 15, qrbox: { width: 250, height: 250 } };
-      // Passaggio pulito: se c'è un ID salvato passiamo l'ID esatto, altrimenti fallback sulla posteriore environment
       const target = selectedCameraId ? selectedCameraId : { facingMode: "environment" };
 
       html5QrCode.start(target, config, onScanSuccess).catch((err) => {
         console.error("Errore avvio camera:", err);
-        // Fallback estremo se fallisce l'ID specifico
         html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess).catch(() => {
           document.getElementById('statusAlert').innerText = "Impossibile accedere alla fotocamera.";
         });
       });
     }
 
+    // ESTRAZIONE IDDET MIRATA (Ignora completamente idcarico)
+    function estraiIddetDaUrl(testo) {
+      if (!testo) return null;
+      
+      // 1. Tenta prima il parsing dell'URL standard
+      try {
+        const url = new URL(testo);
+        const iddet = url.searchParams.get("iddet");
+        if (iddet) return iddet;
+      } catch (e) {
+        // Fallimento URL integro, passiamo alla regex robusta
+      }
+
+      // 2. Cerca direttamente iddet tramite Regex anche se il link è parzialmente rovinato
+      const matchIddet = testo.match(/[?&]iddet=(\d+)/i);
+      if (matchIddet && matchIddet[1]) {
+        return matchIddet[1];
+      }
+
+      // 3. Fallback stringa pura
+      const matchSoloCifre = testo.match(/\b\d{5}\b/);
+      return matchSoloCifre ? matchSoloCifre[0] : testo;
+    }
+
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
       const qrId = estraiIddetDaUrl(decodedText);
-      if (!qrId || qrId.length < 3) { isProcessing = false; return; }
+      
+      if (!qrId || qrId.length < 3) { 
+        isProcessing = false; 
+        return; 
+      }
 
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       if (db[qrId] && db[qrId].typeCode) {
@@ -296,13 +331,34 @@
       fermaScannerEApri(qrId, tipo, "scannerizzato");
     }
 
-    function salvaDB(id, tipo, rev = null, note = null) {
+    function getDataOdiernaFormattata() {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+
+    function salvaDB(id, tipo, rev = null, note = null, dataRev = null) {
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let item = db[id] || {};
+      
+      let nuovoRev = rev !== null ? rev : (item.revised || false);
+      let nuovaData = item.revisedDate || "";
+
+      if (nuovoRev && !item.revised && !dataRev) {
+        nuovaData = getDataOdiernaFormattata();
+      } else if (dataRev !== null) {
+        nuovaData = dataRev;
+      } else if (!nuovoRev) {
+        nuovaData = item.revisedDate || "";
+      }
+
       db[id] = {
-        revised: rev !== null ? rev : (item.revised || false),
+        revised: nuovoRev,
         typeCode: tipo || "",
         notes: note !== null ? note : (item.notes || ""),
+        revisedDate: nuevaData = nuovaData,
         rawText: tipo || ""
       };
       db._settings = { cameraId: selectedCameraId };
@@ -313,10 +369,6 @@
       document.getElementById('statusAlert').innerText = msg;
       document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
       setTimeout(() => { isProcessing = false; }, 1500);
-    }
-
-    function estraiIddetDaUrl(testo) {
-      try { return new URL(testo).searchParams.get("iddet") || testo; } catch { return testo; }
     }
 
     function procediManualcode() {
@@ -333,52 +385,84 @@
       document.getElementById('valId').innerText = id;
       document.getElementById('statusMethod').innerText = `Metodo: ${metodo}`;
       
-      const disp = document.getElementById('codeDisplayArea'), edit = document.getElementById('codeEditArea');
+      const disp = document.getElementById('codeDisplayArea'), editArea = document.getElementById('articleEditArea');
       if (codice && codice.length === 10) {
         disp.innerHTML = `<div class="big-value">${codice}</div>`;
-        disp.style.display = 'block'; edit.style.display = 'none';
+        disp.style.display = 'block'; editArea.style.display = 'none';
       } else {
         disp.innerHTML = `<div style="color: #dc3545; font-size: 14px; margin-bottom: 5px;">⚠️ Codice mancante</div>`;
-        edit.style.display = 'block'; document.getElementById('inputManualCode').value = '';
+        editArea.style.display = 'block';
+        document.getElementById('inputEditCode').value = '';
+        document.getElementById('inputEditDate').value = getDataOdiernaFormattata();
       }
 
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
-      document.getElementById('inputNotes').value = (db[currentId] || {}).notes || "";
-      aggiornaRev((db[currentId] || {}).revised || false);
+      let item = db[currentId] || {};
+      document.getElementById('inputNotes').value = item.notes || "";
+      aggiornaRev(item.revised || false, item.revisedDate || "");
 
       cambiaVista('detail-view');
     }
 
-    function abilitaModificaCodice() {
+    function abilitaModificaArticolo() {
       document.getElementById('dropdownDetailMenu').classList.remove('show');
       document.getElementById('codeDisplayArea').style.display = 'none';
-      document.getElementById('codeEditArea').style.display = 'block';
-      document.getElementById('inputManualCode').value = currentTypeCode;
+      document.getElementById('articleEditArea').style.display = 'block';
+      
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+      document.getElementById('inputEditCode').value = currentTypeCode;
+      document.getElementById('inputEditDate').value = item.revisedDate || getDataOdiernaFormattata();
     }
 
-    function confermaCodiceManuale() {
-      let nuovo = document.getElementById('inputManualCode').value.trim();
-      if (nuovo.length !== 10) { alert("Il codice deve essere di 10 cifre!"); return; }
-      currentTypeCode = nuovo;
-      salvaDB(currentId, nuovo);
-      document.getElementById('codeDisplayArea').innerHTML = `<div class="big-value">${nuovo}</div>`;
+    function confermaModificaArticolo() {
+      let nuovoCodice = document.getElementById('inputEditCode').value.trim();
+      let nuovaData = document.getElementById('inputEditDate').value.trim();
+
+      if (nuovoCodice.length !== 10) { alert("Il codice deve essere esattamente di 10 cifre!"); return; }
+      if (!nuovaData) { alert("Inserisci una data valida!"); return; }
+
+      currentTypeCode = nuovoCodice;
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+
+      salvaDB(currentId, nuovoCodice, item.revised, item.notes, nuovaData);
+
+      document.getElementById('codeDisplayArea').innerHTML = `<div class="big-value">${nuovoCodice}</div>`;
       document.getElementById('codeDisplayArea').style.display = 'block';
-      document.getElementById('codeEditArea').style.display = 'none';
-      alert("Codice confermato!");
+      document.getElementById('articleEditArea').style.display = 'none';
+      
+      aggiornaRev(item.revised, nuovaData);
+      alert("Articolo modificato con successo!");
     }
 
     function salvaNote() {
-      if (currentId) salvaDB(currentId, currentTypeCode, null, document.getElementById('inputNotes').value);
+      if (currentId) {
+        let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+        let item = db[currentId] || {};
+        salvaDB(currentId, currentTypeCode, item.revised, document.getElementById('inputNotes').value, item.revisedDate);
+      }
     }
 
     function impostaRevisionato(rev) {
-      salvaDB(currentId, currentTypeCode, rev, document.getElementById('inputNotes').value);
-      aggiornaRev(rev);
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let item = db[currentId] || {};
+      
+      salvaDB(currentId, currentTypeCode, rev, document.getElementById('inputNotes').value, item.revisedDate);
+      
+      let updatedDb = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let updatedItem = updatedDb[currentId] || {};
+
+      aggiornaRev(rev, updatedItem.revisedDate || "");
       alert(rev ? "Articolo revisionato." : "Revisione rimossa.");
     }
 
-    function aggiornaRev(rev) {
-      document.getElementById('revisionStatus').innerHTML = rev ? `<div class="badge-me">✅ Revisionato da te</div>` : `<div class="badge-other">⚠️ Non ancora revisionato</div>`;
+    function aggiornaRev(rev, dataRev) {
+      let htmlStatus = rev 
+        ? `<div class="badge-me">✅ Revisionato da te<br><span style="font-size:12px; font-weight:normal;">Data: ${dataRev || 'N.D.'}</span></div>` 
+        : `<div class="badge-other">⚠️ Non ancora revisionato</div>`;
+
+      document.getElementById('revisionStatus').innerHTML = htmlStatus;
       document.getElementById('btnSegna').style.display = rev ? 'none' : 'inline-block';
       document.getElementById('btnTogli').style.display = rev ? 'inline-block' : 'none';
     }
