@@ -114,7 +114,7 @@
 
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v4.8</div>
+      <div class="app-version">v4.9</div>
     </div>
   </div>
 
@@ -168,7 +168,7 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v4.8</div>
+      <div class="app-version">v4.9</div>
     </div>
   </div>
 
@@ -187,7 +187,7 @@
 
         <div class="list-container" id="fullHistoryContainer"></div>
       </div>
-      <div class="app-version">v4.8</div>
+      <div class="app-version">v4.9</div>
     </div>
   </div>
 
@@ -204,7 +204,7 @@
         <input type="text" id="searchInput" placeholder="Cerca codice o ID..." oninput="filtraListaRevisionati()" style="margin-top: 10px;">
         <div class="list-container" id="revisedListContainer"></div>
       </div>
-      <div class="app-version">v4.8</div>
+      <div class="app-version">v4.9</div>
     </div>
   </div>
 
@@ -214,8 +214,7 @@
       <div class="content-area">
         <div class="header-bar">
           <div class="header-left">
-            <button class="back-btn" onclick="cambiaVistaConStoria('home-view', '#home')">‹</button>
-            <h2>Impostazioni</h2>
+            <button class="back-btn" onclick="cambiaVistaConStoria('home-view', '#home')">⚙️ Impostazioni</button>
           </div>
         </div>
         <div class="card" style="margin-top: 10px;">
@@ -225,7 +224,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v4.8</div>
+      <div class="app-version">v4.9</div>
     </div>
   </div>
 
@@ -306,25 +305,32 @@
     function cambiaVistaConStoria(idVista, hash) {
       document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
       
-      // Ferma la camera in modo sicuro prima di aprire qualsiasi altra schermata
+      // 1. RENDERE SUBITO VISIBILE LA VISTA (Zero ritardi)
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(idVista).classList.add('active');
+
+      // 2. Spegnere la fotocamera in modo sincrono/asincrono sicuro in background
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
 
+      // 3. Popolare i dati se necessario
       if (idVista === 'full-history-view') caricaCronologiaCompleta();
       if (idVista === 'revised-list-view') caricaListaRevisionati();
 
       history.pushState({ view: idVista }, "", hash);
-      attivaVistaSenzaStoria(idVista);
     }
 
     function attivaVistaSenzaStoria(idVista) {
-      if (idVista !== 'home-view' && html5QrCode && html5QrCode.isScanning) {
+      if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(idVista).classList.add('active');
       
+      if (idVista === 'full-history-view') caricaCronologiaCompleta();
+      if (idVista === 'revised-list-view') caricaListaRevisionati();
+
       if (idVista === 'home-view') {
         setTimeout(avviaScanner, 100);
       }
@@ -618,8 +624,10 @@
       document.getElementById('inputNotes').value = item.notes || "";
       aggiornaRev(item.revised || false, item.revisedDate || "");
 
+      // Apertura immediata della vista dettaglio
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('detail-view').classList.add('active');
       history.pushState({ view: 'detail-view' }, "", "#detail");
-      attivaVistaSenzaStoria('detail-view');
     }
 
     function tornaIndietroDaDettaglio() {
@@ -712,8 +720,11 @@
       document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
       document.getElementById('manualInput').value = '';
       
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('home-view').classList.add('active');
+
       history.pushState({ view: 'home-view' }, "", "#home");
-      attivaVistaSenzaStoria('home-view');
+      setTimeout(avviaScanner, 100);
     }
 
     function esportaDati() {
