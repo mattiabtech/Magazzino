@@ -114,7 +114,7 @@
 
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v4.6</div>
+      <div class="app-version">v4.7</div>
     </div>
   </div>
 
@@ -124,7 +124,7 @@
       <div class="content-area">
         <div class="header-bar">
           <div class="header-left">
-            <button class="back-btn" onclick="tornaAllaHome()">‹</button>
+            <button class="back-btn" onclick="tornaIndietroDaDettaglio()">‹</button>
             <h2>Scheda Articolo</h2>
           </div>
           <button class="menu-btn" onclick="toggleMenu(event, 'dropdownDetailMenu')">⋮</button>
@@ -168,7 +168,7 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v4.6</div>
+      <div class="app-version">v4.7</div>
     </div>
   </div>
 
@@ -178,7 +178,7 @@
       <div class="content-area">
         <div class="header-bar">
           <div class="header-left">
-            <button class="back-btn" onclick="tornaAllaHome()">‹</button>
+            <button class="back-btn" onclick="cambiaVistaConStoria('home-view', '#home')">‹</button>
             <h2>Cronologia Completa</h2>
           </div>
         </div>
@@ -187,7 +187,7 @@
 
         <div class="list-container" id="fullHistoryContainer"></div>
       </div>
-      <div class="app-version">v4.6</div>
+      <div class="app-version">v4.7</div>
     </div>
   </div>
 
@@ -197,14 +197,14 @@
       <div class="content-area">
         <div class="header-bar">
           <div class="header-left">
-            <button class="back-btn" onclick="tornaAllaHome()">‹</button>
+            <button class="back-btn" onclick="cambiaVistaConStoria('home-view', '#home')">‹</button>
             <h2>Articoli Revisionati</h2>
           </div>
         </div>
         <input type="text" id="searchInput" placeholder="Cerca codice o ID..." oninput="filtraListaRevisionati()" style="margin-top: 10px;">
         <div class="list-container" id="revisedListContainer"></div>
       </div>
-      <div class="app-version">v4.6</div>
+      <div class="app-version">v4.7</div>
     </div>
   </div>
 
@@ -214,7 +214,7 @@
       <div class="content-area">
         <div class="header-bar">
           <div class="header-left">
-            <button class="back-btn" onclick="tornaAllaHome()">‹</button>
+            <button class="back-btn" onclick="cambiaVistaConStoria('home-view', '#home')">‹</button>
             <h2>Impostazioni</h2>
           </div>
         </div>
@@ -225,12 +225,13 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v4.6</div>
+      <div class="app-version">v4.7</div>
     </div>
   </div>
 
   <script>
     let html5QrCode = null, currentId = "", currentTypeCode = "", isProcessing = false, selectedCameraId = "";
+    let provenienzaPrecedente = 'home-view'; // Traccia da dove arriviamo al dettaglio
 
     window.onload = function() {
       if (!history.state || !history.state.view) {
@@ -304,7 +305,11 @@
 
     function cambiaVistaConStoria(idVista, hash) {
       document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-      if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(() => {});
+      
+      // Ferma lo scanner in modo pulito e immediato prima di cambiare vista
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
+      }
       
       if (idVista === 'full-history-view') caricaCronologiaCompleta();
       if (idVista === 'revised-list-view') caricaListaRevisionati();
@@ -370,14 +375,15 @@
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       if (db[qrId] && db[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura...";
-        fermaScannerEApri(qrId, db[qrId].typeCode, "memorizzato");
+        fermaScannerEApri(qrId, db[qrId].typeCode, "memorizzato", "home-view");
         return;
       }
       document.getElementById('scannerStatus').innerText = "Analisi OCR in corso...";
       catturaEseguiOCR(qrId);
     }
 
-    function fermaScannerEApri(id, code, metodo) {
+    function fermaScannerEApri(id, code, metodo, provenienza) {
+      provenienzaPrecedente = provenienza;
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {}).finally(() => mostraRisultato(id, code, metodo));
       } else {
@@ -453,7 +459,8 @@
       let container = document.getElementById('revisedListContainer');
       container.innerHTML = '';
 
-      let trovati = 0;
+      // Raccogliamo gli articoli revisionati
+      let listaArticoli = [];
       for (let id in db) {
         if (id === '_settings') continue;
         let art = db[id];
@@ -461,18 +468,25 @@
           if (filtro && !id.toLowerCase().includes(filtro.toLowerCase()) && !art.typeCode.toLowerCase().includes(filtro.toLowerCase())) {
             continue;
           }
-          trovati++;
-          let row = document.createElement('div');
-          row.className = 'list-row';
-          row.innerHTML = `<div><b>ID:</b> ${id}<br><span style="font-family:monospace; color:#007bff; font-size:12px;">${art.typeCode || 'Senza codice'}</span></div> <div style="text-align:right; font-size:11px; color:#666;">Rev: ${art.revisedDate || 'N.D.'}</div>`;
-          row.onclick = () => apriArticoloDaCronologia(id);
-          container.appendChild(row);
+          listaArticoli.push({ id: id, ...art });
         }
       }
 
-      if (trovati === 0) {
+      // Ordiniamo in ordine cronologico (dal più recente inserito/revisionato)
+      listaArticoli.reverse();
+
+      if (listaArticoli.length === 0) {
         container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 30px;">Nessun articolo revisionato trovato.</p>';
+        return;
       }
+
+      listaArticoli.forEach(art => {
+        let row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div><b>ID:</b> ${art.id}<br><span style="font-family:monospace; color:#007bff; font-size:12px;">${art.typeCode || 'Senza codice'}</span></div> <div style="text-align:right; font-size:11px; color:#666;">Rev: ${art.revisedDate || 'N.D.'}</div>`;
+        row.onclick = () => apriArticoloDaLista(art.id);
+        container.appendChild(row);
+      });
     }
 
     function filtraListaRevisionati() {
@@ -483,7 +497,13 @@
     function apriArticoloDaCronologia(id) {
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let art = db[id] || {};
-      fermaScannerEApri(id, art.typeCode || "", "cronologia");
+      fermaScannerEApri(id, art.typeCode || "", "cronologia", "home-view");
+    }
+
+    function apriArticoloDaLista(id) {
+      let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
+      let art = db[id] || {};
+      fermaScannerEApri(id, art.typeCode || "", "lista revisionati", "revised-list-view");
     }
 
     function catturaEseguiOCR(qrId) {
@@ -512,7 +532,7 @@
 
       if (!ok) { riavviaErrore("Codice non valido."); return; }
       salvaDB(qrId, tipo);
-      fermaScannerEApri(qrId, tipo, "scannerizzato");
+      fermaScannerEApri(qrId, tipo, "scannerizzato", "home-view");
     }
 
     function getDataOdiernaFormattata() {
@@ -576,7 +596,7 @@
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let codice = (db[val] && db[val].typeCode) ? db[val].typeCode : "";
       salvaDB(val, codice);
-      fermaScannerEApri(val, codice, "digitato a mano");
+      fermaScannerEApri(val, codice, "digitato a mano", "home-view");
     }
 
     function mostraRisultato(id, codice, metodo) {
@@ -602,6 +622,15 @@
 
       history.pushState({ view: 'detail-view' }, "", "#detail");
       attivaVistaSenzaStoria('detail-view');
+    }
+
+    function tornaIndietroDaDettaglio() {
+      // Torna esattamente alla schermata da cui provenivamo (Home o Lista Revisionati)
+      if (provenienzaPrecedente === 'revised-list-view') {
+        cambiaVistaConStoria('revised-list-view', '#revised-list');
+      } else {
+        tornaAllaHome();
+      }
     }
 
     function abilitaModificaArticolo() {
@@ -680,6 +709,7 @@
     }
 
     function tornaAllaHome() {
+      provenienzaPrecedente = 'home-view';
       isProcessing = false;
       document.getElementById('statusAlert').innerText = "";
       document.getElementById('scannerStatus').innerText = "Inquadra il QR Code:";
