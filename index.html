@@ -114,7 +114,7 @@
 
         <canvas id="snapshotCanvas"></canvas>
       </div>
-      <div class="app-version">v4.4</div>
+      <div class="app-version">v4.5</div>
     </div>
   </div>
 
@@ -168,7 +168,7 @@
           <button id="btnTogli" class="btn btn-danger" onclick="impostaRevisionato(false)">❌ Togli dai miei revisionati</button>
         </div>
       </div>
-      <div class="app-version">v4.4</div>
+      <div class="app-version">v4.5</div>
     </div>
   </div>
 
@@ -187,7 +187,7 @@
 
         <div class="list-container" id="fullHistoryContainer"></div>
       </div>
-      <div class="app-version">v4.4</div>
+      <div class="app-version">v4.5</div>
     </div>
   </div>
 
@@ -204,7 +204,7 @@
         <input type="text" id="searchInput" placeholder="Cerca codice o ID..." oninput="filtraListaRevisionati()" style="margin-top: 10px;">
         <div class="list-container" id="revisedListContainer"></div>
       </div>
-      <div class="app-version">v4.4</div>
+      <div class="app-version">v4.5</div>
     </div>
   </div>
 
@@ -225,7 +225,7 @@
           </select>
         </div>
       </div>
-      <div class="app-version">v4.4</div>
+      <div class="app-version">v4.5</div>
     </div>
   </div>
 
@@ -233,7 +233,6 @@
     let html5QrCode = null, currentId = "", currentTypeCode = "", isProcessing = false, selectedCameraId = "";
 
     window.onload = function() {
-      // Inizializzazione History pulita
       if (!history.state || !history.state.view) {
         history.replaceState({ view: 'home-view' }, "", "#home");
       }
@@ -247,7 +246,6 @@
         }
       };
 
-      // Gestione chiusura menu a tendina ottimizzata senza conflitti
       document.addEventListener('click', (e) => {
         if (!e.target.closest('.menu-btn') && !e.target.closest('.dropdown-menu')) {
           document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
@@ -387,14 +385,14 @@
         return; 
       }
 
-      registraCronologiaScansione(qrId);
-
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       if (db[qrId] && db[qrId].typeCode) {
         document.getElementById('scannerStatus').innerText = "ID già in database! Apertura...";
+        registraCronologiaScansione(qrId);
         fermaScannerPulito().then(() => mostraRisultato(qrId, db[qrId].typeCode, "memorizzato"));
         return;
       }
+      
       document.getElementById('scannerStatus').innerText = "Analisi OCR in corso...";
       catturaEseguiOCR(qrId);
     }
@@ -497,16 +495,22 @@
     function apriArticoloDaCronologia(id) {
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let art = db[id] || {};
+      registraCronologiaScansione(id);
       fermaScannerPulito().then(() => mostraRisultato(id, art.typeCode || "", "cronologia"));
     }
 
     function catturaEseguiOCR(qrId) {
       const video = document.querySelector('#reader video');
-      if (!video) { riavviaErrore("Video non pronto."); return; }
+      if (!video || video.videoWidth === 0) {
+        setTimeout(() => catturaEseguiOCR(qrId), 300);
+        return;
+      }
+      
       const canvas = document.getElementById('snapshotCanvas');
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       Tesseract.recognize(canvas.toDataURL('image/png'), 'eng').then(({ data: { text } }) => {
         validaOCR(qrId, text);
@@ -525,7 +529,9 @@
                (p4 === '0470' && ['004','006','504','506'].includes(s3));
 
       if (!ok) { riavviaErrore("Codice non valido."); return; }
+      
       salvaDB(qrId, tipo);
+      registraCronologiaScansione(qrId);
       fermaScannerPulito().then(() => mostraRisultato(qrId, tipo, "scannerizzato"));
     }
 
@@ -579,10 +585,11 @@
     function procediManualcode() {
       let val = document.getElementById('manualInput').value.trim();
       if (val.length !== 5) { alert("Inserisci esattamente 5 cifre!"); return; }
-      registraCronologiaScansione(val);
+      
       let db = JSON.parse(localStorage.getItem('miei_revisionati') || "{}");
       let codice = (db[val] && db[val].typeCode) ? db[val].typeCode : "";
       salvaDB(val, codice);
+      registraCronologiaScansione(val);
       fermaScannerPulito().then(() => mostraRisultato(val, codice, "digitato a mano"));
     }
 
